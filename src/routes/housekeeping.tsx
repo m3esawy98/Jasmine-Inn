@@ -23,8 +23,8 @@ function HK() {
   const scenarioCode = s.bookings.find((b) => b.id === s.scenario.bookingId)?.code;
   const tasks = s.tasks.filter((x) => inScope(s, s.rooms.find((r) => r.id === x.roomId)!.propertyId) && (filter === "all" || (filter === "open" ? x.status !== "approved" : x.status === "approved")))
     .sort((a, b) => (b.source === scenarioCode ? 1 : 0) - (a.source === scenarioCode ? 1 : 0));
-  const [sel, setSel] = useState<string | null>(null);
-  const cur = tasks.find((x) => x.id === sel) ?? tasks[0];
+  const [sel, setSel] = useState<string | null>(() => s.tasks.find((x) => x.source === scenarioCode && x.status !== "approved")?.id ?? null);
+  const cur = s.tasks.find((x) => x.id === sel) ?? tasks[0];
   return (
     <div>
       <PageHeader title={t("النظافة والتشغيل", "Housekeeping & maintenance")} subtitle={t("الوحدة لا تعود «متاحة» إلا بعد اعتماد الجاهزية.", "Units return to Available only after readiness approval.")} actions={
