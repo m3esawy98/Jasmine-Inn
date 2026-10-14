@@ -54,7 +54,7 @@ function Units() {
                   return (
                     <div key={r.id} className={cn("rounded-xl border p-3", girls && "border-female/40 bg-female-soft", r.code === "A-204" && "ring-2 ring-primary/40")}>
                       <div className="flex items-center justify-between"><b>{r.code}</b>{can(s.role, "unit.edit") && r.hk === "ready" && <button title={t("حجب للصيانة", "Block")} onClick={() => setBlock(r.id)}><Lock className="size-3.5 text-muted-foreground hover:text-destructive" /></button>}</div>
-                      <div className="my-2 flex flex-wrap gap-1">{beds.map((bd) => { const st2 = activeStayOnBed(s, bd.id); const bk = st2 && s.bookings.find((x) => x.id === st2.bookingId); return <span key={bd.id} title={bk ? guestName(s, bk.guestId) : bd.label}><BedDouble className={cn("size-5", st2 ? "text-primary" : r.hk !== "ready" ? "text-warning" : "text-success")} /></span>; })}</div>
+                      <div className="my-2 flex flex-wrap gap-1">{/* occupied beds first, so they sit at the start (right in Arabic) */}{[...beds].sort((x, y) => Number(!!activeStayOnBed(s, y.id)) - Number(!!activeStayOnBed(s, x.id))).map((bd) => { const st2 = activeStayOnBed(s, bd.id); const bk = st2 && s.bookings.find((x) => x.id === st2.bookingId); return <span key={bd.id} title={bk ? guestName(s, bk.guestId) : bd.label}><BedDouble className={cn("size-5", st2 ? "text-muted-foreground/60" : r.hk !== "ready" ? "text-warning" : "text-success")} /></span>; })}</div>
                       <div className="flex flex-wrap items-center gap-1.5">
                         <StatusPill map={UNIT_STATUS} value={status} />
                         {girls && <Pill tone="female">{t("بنات فقط", "Female only")}</Pill>}
@@ -71,7 +71,7 @@ function Units() {
             </div>
           );
         })}
-        <div className="flex flex-wrap gap-4 text-xs text-muted-foreground"><span className="flex items-center gap-1"><BedDouble className="size-4 text-primary" />{t("مشغول", "Occupied")}</span><span className="flex items-center gap-1"><BedDouble className="size-4 text-success" />{t("متاح", "Free")}</span><span className="flex items-center gap-1"><BedDouble className="size-4 text-warning" />{t("غير جاهز", "Not ready")}</span><span className="flex items-center gap-1"><span className="size-3 rounded-sm border border-female/40 bg-female-soft" />{t("متاحة جزئيًا وبها طالبات", "Partial with female residents")}</span><Pill>{t("حجب الوحدات متاح لمدير المنشأة والإدارة العليا", "Blocking: managers only")}</Pill></div>
+        <div className="flex flex-wrap gap-4 text-xs text-muted-foreground"><span className="flex items-center gap-1"><BedDouble className="size-4 text-muted-foreground/60" />{t("مشغول", "Occupied")}</span><span className="flex items-center gap-1"><BedDouble className="size-4 text-success" />{t("متاح", "Free")}</span><span className="flex items-center gap-1"><BedDouble className="size-4 text-warning" />{t("غير جاهز", "Not ready")}</span><span className="flex items-center gap-1"><span className="size-3 rounded-sm border border-female/40 bg-female-soft" />{t("متاحة جزئيًا وبها طالبات", "Partial with female residents")}</span><Pill>{t("حجب الوحدات متاح لمدير المنشأة والإدارة العليا", "Blocking: managers only")}</Pill></div>
       </Section>
       <Dialog open={!!block} onOpenChange={(o) => !o && setBlock(null)}>
         <DialogContent>
