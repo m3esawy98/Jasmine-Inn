@@ -79,7 +79,7 @@ function Units() {
                         onClick: () => navigate({ to: "/rooms/$id", params: { id: r.id } }),
                         onKeyDown: (e: React.KeyboardEvent) => e.key === "Enter" && navigate({ to: "/rooms/$id", params: { id: r.id } }),
                       })}
-                      className={cn("rounded-xl border p-3", hasResidents && "cursor-pointer transition hover:border-primary/50 hover:shadow-sm", girls && "border-female/40 bg-female-soft")}
+                      className={cn("rounded-xl border p-3", hasResidents && "cursor-pointer transition hover:border-primary/50 hover:shadow-sm")}
                     >
                       <div className="flex items-center justify-between"><b>{r.code}</b>{can(s.role, "unit.edit") && r.hk === "ready" && <button title={t("حجب للصيانة", "Block")} onClick={(e) => { e.stopPropagation(); setBlock(r.id); }}><Lock className="size-3.5 text-muted-foreground hover:text-destructive" /></button>}</div>
                       <div className="my-2 flex flex-wrap gap-1">{[...beds].sort((x, y) => rank(x.id) - rank(y.id)).map((bd) => { const st2 = activeStayOnBed(s, bd.id); const bk = st2 && s.bookings.find((x) => x.id === st2.bookingId); const next = !st2 && upcomingBookingOnBed(s, bd.id); return <span key={bd.id} title={bk ? guestName(s, bk.guestId) : next ? `${bd.label} · ${t("حجز قادم", "Upcoming")} ${next.code} ${shortDate(next.start)}` : bd.label}><BedDouble className={cn("size-5", st2 ? "text-muted-foreground/60" : r.hk !== "ready" ? "text-warning" : next ? "text-info" : "text-success")} /></span>; })}</div>
@@ -88,7 +88,7 @@ function Units() {
                         {girls && <Pill tone="female">{t("بنات فقط", "Female only")}</Pill>}
                         {status === "full" && female && <Pill tone="female">{t("بنات", "Female")}</Pill>}
                         {status === "partial" && (
-                          <span className={cn("text-xs font-medium", girls ? "text-female" : "text-success")}>
+                          <span className="text-xs font-medium text-success">
                             {t(`متاح ${num(free)} من ${num(beds.length)}`, `Free ${num(free)} of ${num(beds.length)}`)}
                           </span>
                         )}
@@ -107,7 +107,7 @@ function Units() {
             </div>
           );
         })}
-        <div className="flex flex-wrap gap-4 text-xs text-muted-foreground"><span className="flex items-center gap-1"><BedDouble className="size-4 text-muted-foreground/60" />{t("مشغول", "Occupied")}</span><span className="flex items-center gap-1"><BedDouble className="size-4 text-success" />{t("متاح", "Free")}</span><span className="flex items-center gap-1"><BedDouble className="size-4 text-info" />{t("متاح وعليه حجز قادم", "Free, upcoming booking")}</span><span className="flex items-center gap-1"><BedDouble className="size-4 text-warning" />{t("غير جاهز", "Not ready")}</span><span className="flex items-center gap-1"><span className="size-3 rounded-sm border border-female/40 bg-female-soft" />{t("متاحة جزئيًا وبها طالبات", "Partial with female residents")}</span><Pill>{t("حجب الوحدات متاح لمدير المنشأة والإدارة العليا", "Blocking: managers only")}</Pill></div>
+        <div className="flex flex-wrap gap-4 text-xs text-muted-foreground"><span className="flex items-center gap-1"><BedDouble className="size-4 text-muted-foreground/60" />{t("مشغول", "Occupied")}</span><span className="flex items-center gap-1"><BedDouble className="size-4 text-success" />{t("متاح", "Free")}</span><span className="flex items-center gap-1"><BedDouble className="size-4 text-info" />{t("متاح وعليه حجز قادم", "Free, upcoming booking")}</span><span className="flex items-center gap-1"><BedDouble className="size-4 text-warning" />{t("غير جاهز", "Not ready")}</span><Pill>{t("حجب الوحدات متاح لمدير المنشأة والإدارة العليا", "Blocking: managers only")}</Pill></div>
       </Section>
       <Dialog open={!!block} onOpenChange={(o) => !o && setBlock(null)}>
         <DialogContent>
