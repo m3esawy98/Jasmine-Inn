@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { DirectionProvider } from "@radix-ui/react-direction";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import {
   BarChart3, BedDouble, Bell, Building2, CalendarCheck, CalendarDays, ClipboardList, FileSignature, Globe, KeyRound,
@@ -129,7 +130,9 @@ export function AppShell({ children }: { children: ReactNode }) {
     document.documentElement.dir = s.lang === "ar" ? "rtl" : "ltr";
   }, [s.lang]);
 
+  // Radix primitives (Select, menus, tabs…) ignore the page's dir attribute and default to LTR.
   return (
+    <DirectionProvider dir={s.lang === "ar" ? "rtl" : "ltr"}>
     <div className="min-h-screen">
       <aside className="fixed inset-y-0 start-0 z-30 hidden w-64 flex-col gap-6 bg-sidebar p-4 lg:flex">
         <Brand />
@@ -234,6 +237,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </div>
       <TourPanel />
     </div>
+    </DirectionProvider>
   );
 }
 
