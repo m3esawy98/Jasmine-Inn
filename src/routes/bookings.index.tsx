@@ -38,7 +38,7 @@ function Bookings() {
   return (
     <div>
       <PageHeader title={t("الحجوزات", "Bookings")} subtitle={t("الحجز المؤكد لا يُحتسب إشغالًا فعليًا قبل تسجيل الوصول.", "Confirmed ≠ occupied until check-in.")} actions={<Button asChild><Link to="/bookings/new"><Plus className="size-4" />{t("حجز جديد", "New booking")}</Link></Button>} />
-      <Tabs defaultValue="list">
+      <Tabs dir={s.lang === "ar" ? "rtl" : "ltr"} defaultValue="list">
         <TabsList><TabsTrigger value="list">{t("عرض جدولي", "List")}</TabsTrigger><TabsTrigger value="cal">{t("تقويم التوافر", "Availability calendar")}</TabsTrigger></TabsList>
         <TabsContent value="list">
           <Section>

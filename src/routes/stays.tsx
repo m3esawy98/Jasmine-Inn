@@ -27,7 +27,7 @@ function Stays() {
   return (
     <div>
       <PageHeader title={t("الإقامة والتسكين", "Stays & check-in")} subtitle={t("الإشغال الفعلي يبدأ عند تسجيل الوصول وينتهي عند تسجيل المغادرة.", "Actual occupancy starts at check-in.")} />
-      <Tabs value={tab} onValueChange={(v) => { setTab(v); setSel(null); }}>
+      <Tabs dir={s.lang === "ar" ? "rtl" : "ltr"} value={tab} onValueChange={(v) => { setTab(v); setSel(null); }}>
         <TabsList>
           <TabsTrigger value="arr">{t("الوصول المتوقع", "Arrivals")} ({arrivals.length})</TabsTrigger>
           <TabsTrigger value="in">{t("المقيمون حاليًا / المغادرة", "In-house / departures")} ({inhouse.length})</TabsTrigger>
