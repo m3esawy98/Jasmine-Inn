@@ -45,13 +45,19 @@ function NewBooking() {
   const room = s.rooms.find((r) => r.id === roomId);
   const plan = s.plans.find((p) => p.id === planId)!;
   const rent = computeRent(plan, start, end);
+  // The booking just saved from this form, while its inputs are unchanged. The form stays open in the
+  // scenario, so without this the availability check would report the new booking as a conflict with itself.
+  const [saved, setSaved] = useState<{ id: string; code: string; key: string } | null>(null);
+  const key = `${bedId}|${start}|${end}|${planId}`;
+  const mine = saved?.key === key ? saved : null;
   const bedStatus = useMemo(
     () =>
       beds.map((b) => {
         const c = bedConflict(s, b.id, start, end, planId);
-        return { bed: b, conflict: c, occupiedNow: !!activeStayOnBed(s, b.id) };
+        const own = !!mine && c?.id === mine.id;
+        return { bed: b, conflict: own ? undefined : c, own, occupiedNow: !!activeStayOnBed(s, b.id) };
       }),
-    [beds, s, start, end, planId],
+    [beds, s, start, end, planId, mine],
   );
   const sel = bedStatus.find((x) => x.bed.id === bedId);
   const allowed = can(s.role, "booking.create");
@@ -67,6 +73,7 @@ function NewBooking() {
     const res = actions.createBooking({ guest: { ...g, gender: g.gender, kind }, bedId, start, end, planId, scenario: scenarioMode });
     if (!res.ok) { setError(res.error); toast.error(res.error); return; }
     setError(null);
+    setSaved({ id: res.data!.id, code: res.data!.code, key });
     toast.success(t(`تم حفظ الحجز ${res.data!.code} بحالة «قيد المراجعة»`, `Booking ${res.data!.code} saved as Under review`));
     if (getState().scenario.tourActive && scenarioMode) actions.tour({ step: 2 });
     else navigate({ to: "/bookings/$id", params: { id: res.data!.id } });
@@ -141,8 +148,8 @@ function NewBooking() {
             <div className="mt-5">
               <p className="mb-2 text-sm font-medium">{t("اختر السرير / الوحدة — توافر الفترة المحددة", "Pick bed — availability for selected period")}</p>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                {bedStatus.map(({ bed, conflict, occupiedNow }) => {
-                  const blocked = !!conflict || room?.hk === "maintenance";
+                {bedStatus.map(({ bed, conflict, own, occupiedNow }) => {
+                  const blocked = !own && (!!conflict || room?.hk === "maintenance");
                   return (
                     <button
                       key={bed.id}
@@ -151,13 +158,13 @@ function NewBooking() {
                       className={cn(
                         "rounded-xl border p-3 text-start transition",
                         bed.id === bedId ? "border-primary ring-2 ring-primary/30" : "hover:border-primary/40",
-                        blocked ? "bg-destructive-soft" : "bg-success-soft",
+                        own ? "bg-primary-soft" : blocked ? "bg-destructive-soft" : "bg-success-soft",
                       )}
                     >
-                      <BedDouble className={cn("size-5", blocked ? "text-destructive" : "text-success")} />
+                      <BedDouble className={cn("size-5", own ? "text-primary" : blocked ? "text-destructive" : "text-success")} />
                       <p className="mt-1 text-sm font-semibold">{bed.label}</p>
                       <p className="text-xs text-muted-foreground">
-                        {blocked ? (conflict ? `${t("محجوز", "Booked")} ${conflict.code}` : t("خارج الخدمة", "Out of service")) : t("متاح للفترة", "Available")}
+                        {own ? `${t("حجزك", "Your booking")} ${mine!.code}` : blocked ? (conflict ? `${t("محجوز", "Booked")} ${conflict.code}` : t("خارج الخدمة", "Out of service")) : t("متاح للفترة", "Available")}
                         {occupiedNow && ` · ${t("مشغول حاليًا", "occupied now")}`}
                       </p>
                     </button>
@@ -188,12 +195,14 @@ function NewBooking() {
         </div>
         <div className="space-y-4">
           <Section title={t("نتيجة فحص التوافر", "Availability check")}>
-            {sel && !sel.conflict && room?.hk !== "maintenance" ? (
+            {sel?.own ? (
+              <div className="flex gap-2 rounded-lg bg-success-soft p-3 text-sm text-success"><CheckCircle2 className="size-5 shrink-0" />{t(`تم حجز ${room?.code} / ${sel.bed.label} بالحجز ${mine!.code} (قيد المراجعة)`, `${room?.code} / ${sel.bed.label} booked as ${mine!.code} (under review)`)}</div>
+            ) : sel && !sel.conflict && room?.hk !== "maintenance" ? (
               <div className="flex gap-2 rounded-lg bg-success-soft p-3 text-sm text-success"><CheckCircle2 className="size-5 shrink-0" />{t(`${room?.code} / ${sel.bed.label} متاح من ${start} إلى ${end}`, `${room?.code} / ${sel.bed.label} available ${start} → ${end}`)}</div>
             ) : (
               <div className="flex gap-2 rounded-lg bg-destructive-soft p-3 text-sm text-destructive"><AlertCircle className="size-5 shrink-0" />{sel?.conflict ? t(`متعارض مع ${sel.conflict.code} (${sel.conflict.start} → ${sel.conflict.end})`, `Conflicts with ${sel.conflict.code}`) : t("الوحدة خارج الخدمة", "Out of service")}</div>
             )}
-            <p className="mt-2 text-xs text-muted-foreground">{t(`الأسرة المتاحة في الغرفة: ${bedStatus.filter((x) => !x.conflict).length} من ${bedStatus.length}`, `Free beds in room: ${bedStatus.filter((x) => !x.conflict).length}/${bedStatus.length}`)}</p>
+            <p className="mt-2 text-xs text-muted-foreground">{t(`الأسرة المتاحة في الغرفة: ${bedStatus.filter((x) => !x.conflict && !x.own).length} من ${bedStatus.length}`, `Free beds in room: ${bedStatus.filter((x) => !x.conflict && !x.own).length}/${bedStatus.length}`)}</p>
           </Section>
           <Section title={t("السعر الإجمالي", "Total price")}>
             <dl className="space-y-2 text-sm">
@@ -202,7 +211,7 @@ function NewBooking() {
               <div className="border-t pt-2"><Row k={<b>{t("إجمالي الفاتورة", "Invoice total")}</b>} v={<b className="text-lg text-primary">{money(rent + plan.deposit)}</b>} /></div>
             </dl>
             <p className="mt-2 text-[11px] text-muted-foreground">{t("أرقام توضيحية للعرض وليست أسعارًا معتمدة.", "Illustrative figures only.")}</p>
-            <Button className="mt-4 w-full" size="lg" onClick={save} disabled={!allowed}>{t("حفظ الحجز (قيد المراجعة)", "Save booking (under review)")}</Button>
+            <Button className="mt-4 w-full" size="lg" onClick={save} disabled={!allowed || !!mine}>{t("حفظ الحجز (قيد المراجعة)", "Save booking (under review)")}</Button>
           </Section>
         </div>
       </div>
