@@ -24,6 +24,7 @@ import { Route as BookingsIdRouteImport } from './routes/bookings.$id'
 import { Route as BookingsNewRouteImport } from './routes/bookings.new'
 import { Route as FinanceIndexRouteImport } from './routes/finance.index'
 import { Route as FinanceIdRouteImport } from './routes/finance.$id'
+import { Route as RoomsIdRouteImport } from './routes/rooms.$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -100,6 +101,11 @@ const FinanceIdRoute = FinanceIdRouteImport.update({
   path: '/finance/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RoomsIdRoute = RoomsIdRouteImport.update({
+  id: '/rooms/$id',
+  path: '/rooms/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -115,6 +121,7 @@ export interface FileRoutesByFullPath {
   '/bookings/$id': typeof BookingsIdRoute
   '/bookings/new': typeof BookingsNewRoute
   '/finance/$id': typeof FinanceIdRoute
+  '/rooms/$id': typeof RoomsIdRoute
   '/bookings/': typeof BookingsIndexRoute
   '/finance/': typeof FinanceIndexRoute
 }
@@ -132,6 +139,7 @@ export interface FileRoutesByTo {
   '/bookings/$id': typeof BookingsIdRoute
   '/bookings/new': typeof BookingsNewRoute
   '/finance/$id': typeof FinanceIdRoute
+  '/rooms/$id': typeof RoomsIdRoute
   '/bookings': typeof BookingsIndexRoute
   '/finance': typeof FinanceIndexRoute
 }
@@ -150,6 +158,7 @@ export interface FileRoutesById {
   '/bookings/$id': typeof BookingsIdRoute
   '/bookings/new': typeof BookingsNewRoute
   '/finance/$id': typeof FinanceIdRoute
+  '/rooms/$id': typeof RoomsIdRoute
   '/bookings/': typeof BookingsIndexRoute
   '/finance/': typeof FinanceIndexRoute
 }
@@ -169,6 +178,7 @@ export interface FileRouteTypes {
     | '/bookings/$id'
     | '/bookings/new'
     | '/finance/$id'
+    | '/rooms/$id'
     | '/bookings/'
     | '/finance/'
   fileRoutesByTo: FileRoutesByTo
@@ -186,6 +196,7 @@ export interface FileRouteTypes {
     | '/bookings/$id'
     | '/bookings/new'
     | '/finance/$id'
+    | '/rooms/$id'
     | '/bookings'
     | '/finance'
   id:
@@ -203,6 +214,7 @@ export interface FileRouteTypes {
     | '/bookings/$id'
     | '/bookings/new'
     | '/finance/$id'
+    | '/rooms/$id'
     | '/bookings/'
     | '/finance/'
   fileRoutesById: FileRoutesById
@@ -221,6 +233,7 @@ export interface RootRouteChildren {
   BookingsIdRoute: typeof BookingsIdRoute
   BookingsNewRoute: typeof BookingsNewRoute
   FinanceIdRoute: typeof FinanceIdRoute
+  RoomsIdRoute: typeof RoomsIdRoute
   BookingsIndexRoute: typeof BookingsIndexRoute
   FinanceIndexRoute: typeof FinanceIndexRoute
 }
@@ -332,6 +345,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FinanceIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/rooms/$id': {
+      id: '/rooms/$id'
+      path: '/rooms/$id'
+      fullPath: '/rooms/$id'
+      preLoaderRoute: typeof RoomsIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -349,6 +369,7 @@ const rootRouteChildren: RootRouteChildren = {
   BookingsIdRoute: BookingsIdRoute,
   BookingsNewRoute: BookingsNewRoute,
   FinanceIdRoute: FinanceIdRoute,
+  RoomsIdRoute: RoomsIdRoute,
   BookingsIndexRoute: BookingsIndexRoute,
   FinanceIndexRoute: FinanceIndexRoute,
 }

@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { BedDouble, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,7 @@ function Units() {
   const t = useT();
   const num = useNum();
   const search = Route.useSearch();
+  const navigate = useNavigate();
   const [pid, setPid] = useState(s.propertyFilter === "all" ? "p1" : s.propertyFilter);
   const [q, setQ] = useState(search.q ?? "");
   const [st, setSt] = useState("all");
@@ -51,9 +52,20 @@ function Units() {
                   const free = beds.filter((bd) => !activeStayOnBed(s, bd.id)).length;
                   // Partially free rooms with a female resident must only take female students.
                   const girls = status === "partial" && roomGenders(s, r.id).has("female");
+                  const hasResidents = status === "partial" || status === "full";
                   return (
-                    <div key={r.id} className={cn("rounded-xl border p-3", girls && "border-female/40 bg-female-soft", r.code === "A-204" && "ring-2 ring-primary/40")}>
-                      <div className="flex items-center justify-between"><b>{r.code}</b>{can(s.role, "unit.edit") && r.hk === "ready" && <button title={t("حجب للصيانة", "Block")} onClick={() => setBlock(r.id)}><Lock className="size-3.5 text-muted-foreground hover:text-destructive" /></button>}</div>
+                    <div
+                      key={r.id}
+                      // Rooms with residents open the room detail page listing who is staying there.
+                      {...(hasResidents && {
+                        role: "link",
+                        tabIndex: 0,
+                        onClick: () => navigate({ to: "/rooms/$id", params: { id: r.id } }),
+                        onKeyDown: (e: React.KeyboardEvent) => e.key === "Enter" && navigate({ to: "/rooms/$id", params: { id: r.id } }),
+                      })}
+                      className={cn("rounded-xl border p-3", hasResidents && "cursor-pointer transition hover:border-primary/50 hover:shadow-sm", girls && "border-female/40 bg-female-soft", r.code === "A-204" && "ring-2 ring-primary/40")}
+                    >
+                      <div className="flex items-center justify-between"><b>{r.code}</b>{can(s.role, "unit.edit") && r.hk === "ready" && <button title={t("حجب للصيانة", "Block")} onClick={(e) => { e.stopPropagation(); setBlock(r.id); }}><Lock className="size-3.5 text-muted-foreground hover:text-destructive" /></button>}</div>
                       <div className="my-2 flex flex-wrap gap-1">{/* occupied beds first, so they sit at the start (right in Arabic) */}{[...beds].sort((x, y) => Number(!!activeStayOnBed(s, y.id)) - Number(!!activeStayOnBed(s, x.id))).map((bd) => { const st2 = activeStayOnBed(s, bd.id); const bk = st2 && s.bookings.find((x) => x.id === st2.bookingId); return <span key={bd.id} title={bk ? guestName(s, bk.guestId) : bd.label}><BedDouble className={cn("size-5", st2 ? "text-muted-foreground/60" : r.hk !== "ready" ? "text-warning" : "text-success")} /></span>; })}</div>
                       <div className="flex flex-wrap items-center gap-1.5">
                         <StatusPill map={UNIT_STATUS} value={status} />
