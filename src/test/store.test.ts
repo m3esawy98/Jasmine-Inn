@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import {
   actions,
+  activeStayOnBed,
   getState,
   invoiceBalance,
   kpis,
@@ -210,6 +211,17 @@ describe("room gender", () => {
     const s = getState();
     expect(s.rooms.filter((r) => roomGenders(s, r.id).size > 1).map((r) => r.code)).toEqual([]);
     expect([...roomGenders(s, ROOM)]).toEqual(["male"]);
+  });
+
+  it("fills seeded shared rooms in bed order, free beds last", () => {
+    const s = getState();
+    for (const room of s.rooms) {
+      const occupied = s.beds
+        .filter((b) => b.roomId === room.id)
+        .map((b) => !!activeStayOnBed(s, b.id));
+      // Once a free bed appears, no occupied bed may follow it.
+      expect(occupied.slice(occupied.indexOf(false) >>> 0)).not.toContain(true);
+    }
   });
 
   it("reports female residents in a seeded girls' room", () => {

@@ -19,7 +19,7 @@ import type {
 import { addDays, addMonths, computeRent } from "./calc";
 
 export const DEMO_TODAY = "2026-11-01";
-export const STATE_VERSION = 4;
+export const STATE_VERSION = 5;
 
 function rng(seed: number) {
   let s = seed;
@@ -273,6 +273,22 @@ export function createSeed(): DemoState {
         makeBooking(bed, "pl-week", addDays(DEMO_TODAY, 4), addDays(DEMO_TODAY, 17), "confirmed", "guest");
       }
     }
+  }
+
+  // Fill shared rooms in bed order: residents on the lowest-numbered beds, then confirmed, then pending
+  // bookings, free beds last. Each bed's bookings move together, so no overlaps are introduced.
+  const rank = (bedId: string) => {
+    const st = bookings.filter((b) => b.bedId === bedId).map((b) => b.status);
+    return st.includes("checked_in") ? 0 : st.includes("confirmed") ? 1 : st.includes("pending") ? 2 : 3;
+  };
+  for (const room of rooms) {
+    const roomBeds = beds.filter((b) => b.roomId === room.id);
+    if (roomBeds.length < 2) continue;
+    const target = new Map(
+      [...roomBeds].sort((a, b) => rank(a.id) - rank(b.id)).map((from, i) => [from.id, roomBeds[i].id]),
+    );
+    for (const b of bookings) if (target.has(b.bedId)) b.bedId = target.get(b.bedId)!;
+    for (const st of stays) if (target.has(st.bedId)) st.bedId = target.get(st.bedId)!;
   }
 
   // Rooms needing housekeeping / maintenance (only rooms with no active stays)

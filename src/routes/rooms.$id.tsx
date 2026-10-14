@@ -38,10 +38,8 @@ function RoomDetail() {
   const prop = s.properties.find((p) => p.id === room.propertyId)!;
   const building = s.buildings.find((b) => b.id === room.buildingId)!;
   const genders = roomGenders(s, room.id);
-  // Occupied beds first, matching the units grid.
-  const beds = s.beds
-    .filter((b) => b.roomId === room.id)
-    .sort((x, y) => Number(!!activeStayOnBed(s, y.id)) - Number(!!activeStayOnBed(s, x.id)));
+  // In bed-number order, so the list matches the physical beds.
+  const beds = s.beds.filter((b) => b.roomId === room.id);
 
   return (
     <div>

@@ -60,6 +60,11 @@ function NewBooking() {
     [beds, s, start, end, planId, mine],
   );
   const sel = bedStatus.find((x) => x.bed.id === bedId);
+  // Fill shared rooms in bed order: preselect the lowest-numbered bed that's free for the chosen period.
+  const firstFreeBed = (rid: string) => {
+    const roomBeds = s.beds.filter((x) => x.roomId === rid);
+    return (roomBeds.find((x) => !bedConflict(s, x.id, start, end, planId)) ?? roomBeds[0]).id;
+  };
   const allowed = can(s.role, "booking.create");
 
   const save = () => {
@@ -119,19 +124,19 @@ function NewBooking() {
           <Section title={t("الوحدة والفترة", "Unit & period")}>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label={t("المنشأة", "Property")}>
-                <Select value={propertyId} onValueChange={(v) => { setProperty(v); const b = s.buildings.find((x) => x.propertyId === v)!; setBuilding(b.id); const r = s.rooms.find((x) => x.buildingId === b.id)!; setRoom(r.id); setBed(s.beds.find((x) => x.roomId === r.id)!.id); setPlan(v === "p1" ? "pl-month" : v === "p2" ? "pl-night" : "pl-week"); }}>
+                <Select value={propertyId} onValueChange={(v) => { setProperty(v); const b = s.buildings.find((x) => x.propertyId === v)!; setBuilding(b.id); const r = s.rooms.find((x) => x.buildingId === b.id)!; setRoom(r.id); setBed(firstFreeBed(r.id)); setPlan(v === "p1" ? "pl-month" : v === "p2" ? "pl-night" : "pl-week"); }}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>{s.properties.map((p) => <SelectItem key={p.id} value={p.id}>{t(p.name, p.nameEn)}</SelectItem>)}</SelectContent>
                 </Select>
               </Field>
               <Field label={t("المبنى", "Building")}>
-                <Select value={buildingId} onValueChange={(v) => { setBuilding(v); const r = s.rooms.find((x) => x.buildingId === v)!; setRoom(r.id); setBed(s.beds.find((x) => x.roomId === r.id)!.id); }}>
+                <Select value={buildingId} onValueChange={(v) => { setBuilding(v); const r = s.rooms.find((x) => x.buildingId === v)!; setRoom(r.id); setBed(firstFreeBed(r.id)); }}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>{buildings.map((b) => <SelectItem key={b.id} value={b.id}>{t("مبنى", "Building")} {b.name}</SelectItem>)}</SelectContent>
                 </Select>
               </Field>
               <Field label={t("الغرفة / الشقة", "Room / apartment")}>
-                <Select value={roomId} onValueChange={(v) => { setRoom(v); setBed(s.beds.find((x) => x.roomId === v)!.id); }}>
+                <Select value={roomId} onValueChange={(v) => { setRoom(v); setBed(firstFreeBed(v)); }}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>{rooms.map((r) => <SelectItem key={r.id} value={r.id}>{r.code} {r.hk === "maintenance" ? `(${t("صيانة", "maint.")})` : ""}</SelectItem>)}</SelectContent>
                 </Select>
