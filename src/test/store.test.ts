@@ -9,7 +9,7 @@ import {
   PERIOD_START,
   roomGenders,
 } from "@/lib/demo/store";
-import type { Booking, Gender } from "@/lib/demo/types";
+import type { Booking, Gender, IdType } from "@/lib/demo/types";
 
 // Scenario room A-204 is a quad: bed 1 is occupied (monthly, 2026-09-01 → 2027-01-31), beds 2-4 are free.
 const BED1 = "r-A-204-1";
@@ -24,7 +24,8 @@ const guest = (name = "ضيف تجريبي", nationalId = `299${String(++nid).pa
   email: "test@example.com",
   kind: "student" as const,
   gender: "male" as Gender,
-  nationalId,
+  idType: "national_id" as IdType,
+  idNumber: nationalId,
 });
 
 function book(bedId: string, start: string, end: string, planId = "pl-month", g = guest()) {
@@ -105,6 +106,71 @@ describe("availability", () => {
     });
     expect(zero).toEqual({ ok: false, error: "تواريخ الإقامة غير صحيحة" });
     expect(() => book(BED2, "2026-12-01", "2026-12-01")).not.toThrow();
+  });
+});
+
+describe("guest identity", () => {
+  const passport = (idNumber: string, nationality = "السودان") => ({
+    ...guest(),
+    idType: "passport" as IdType,
+    idNumber,
+    nationality,
+  });
+  const tryBook = (g: ReturnType<typeof guest>) =>
+    actions.createBooking({
+      guest: g,
+      bedId: BED2,
+      start: "2026-12-01",
+      end: "2026-12-31",
+      planId: "pl-month",
+    });
+
+  it("requires a 14-digit national ID", () => {
+    expect(tryBook(guest("طالب", "123"))).toEqual({
+      ok: false,
+      error: "الرقم القومي يجب أن يتكون من 14 رقمًا",
+    });
+    expect(tryBook(guest("طالب", ""))).toMatchObject({ ok: false });
+    expect(tryBook(guest("طالب", "2990101123456X"))).toMatchObject({ ok: false });
+  });
+
+  it("accepts a passport and stores it normalized with the nationality", () => {
+    const b = book(BED2, "2026-12-01", "2026-12-31", "pl-month", passport(" a 1234567 "));
+    const g = getState().guests.find((x) => x.id === b.guestId)!;
+    expect(g).toMatchObject({ idType: "passport", idNumber: "A1234567", nationality: "السودان" });
+  });
+
+  it("rejects malformed passport numbers", () => {
+    expect(tryBook(passport("A12"))).toMatchObject({ ok: false });
+    expect(tryBook(passport("A1234567890"))).toMatchObject({ ok: false });
+    expect(tryBook(passport("A12-4567"))).toMatchObject({ ok: false });
+  });
+
+  it("requires the nationality for passport holders", () => {
+    expect(tryBook(passport("A1234567", " "))).toEqual({
+      ok: false,
+      error: "أدخل الجنسية لحامل جواز السفر",
+    });
+  });
+
+  it("reuses the guest file for the same passport", () => {
+    const a = book(BED2, "2026-12-01", "2026-12-31", "pl-month", passport("B7654321"));
+    const b = book(BED3, "2027-01-01", "2027-01-31", "pl-month", passport("b7654321"));
+    expect(a.guestId).toBe(b.guestId);
+  });
+
+  it("refuses a second profile with the same ID", () => {
+    expect(actions.addGuest(passport("C1111111")).ok).toBe(true);
+    expect(actions.addGuest(passport("C1111111"))).toEqual({
+      ok: false,
+      error: "يوجد ملف مسجل بنفس رقم الهوية",
+    });
+  });
+
+  it("seeds some international students with passports", () => {
+    const intl = getState().guests.filter((g) => g.idType === "passport");
+    expect(intl.length).toBeGreaterThan(0);
+    expect(intl.every((g) => g.kind === "student" && g.nationality)).toBe(true);
   });
 });
 

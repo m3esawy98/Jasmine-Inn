@@ -33,7 +33,7 @@ function BookingDetail() {
   const prop = bedProperty(s, b.bedId);
   const review = can(s.role, "booking.review");
   const docs: [keyof typeof b.docs, string, string][] = [
-    ["id", "صورة الهوية / الرقم القومي", "ID copy"],
+    ["id", g.idType === "passport" ? "صورة جواز السفر" : "صورة بطاقة الرقم القومي", g.idType === "passport" ? "Passport copy" : "National ID copy"],
     ["enrollment", g.kind === "student" ? "إثبات القيد الجامعي" : "بيانات الجهة / الحجز", "Enrollment / company proof"],
     ["photo", "صورة شخصية", "Photo"],
   ];

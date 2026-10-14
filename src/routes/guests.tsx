@@ -7,10 +7,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PageHeader, Pill, Section, StatusPill, run } from "@/components/stay/kit";
+import { GuestIdFields } from "@/components/stay/GuestIdFields";
 import { actions, bedLabel, can, invoiceBalance, useDemo } from "@/lib/demo/store";
-import { BOOKING_STATUS, useDate, useMoney, useT } from "@/lib/demo/ui";
+import { BOOKING_STATUS, ID_TYPE, useDate, useMoney, useT } from "@/lib/demo/ui";
 import { meta } from "@/lib/demo/meta";
-import type { Gender } from "@/lib/demo/types";
+import type { Gender, IdType } from "@/lib/demo/types";
 
 export const Route = createFileRoute("/guests")({
   validateSearch: (s: Record<string, unknown>) => ({ id: typeof s.id === "string" ? s.id : undefined }),
@@ -27,7 +28,7 @@ function Guests() {
   const [q, setQ] = useState("");
   const [open, setOpen] = useState<string | null>(search.id ?? null);
   const [add, setAdd] = useState(false);
-  const empty = { name: "", phone: "", email: "", nationalId: "", org: "", gender: "" as Gender | "" };
+  const empty = { name: "", phone: "", email: "", org: "", idType: "national_id" as IdType, idNumber: "", nationality: "", gender: "" as Gender | "" };
   const [f, setF] = useState(empty);
   const list = s.guests.filter((g) => !q || g.name.includes(q) || g.phone.includes(q)).slice().reverse();
   const g = s.guests.find((x) => x.id === open);
@@ -52,6 +53,7 @@ function Guests() {
             <SheetHeader><SheetTitle>{g.name}</SheetTitle></SheetHeader>
             <div className="space-y-4 p-4 text-sm">
               <p className="text-muted-foreground">{g.phone} · {g.email} · {g.org ?? ""}</p>
+              <p className="text-muted-foreground">{t(...ID_TYPE[g.idType])}: <span dir="ltr">{g.idNumber}</span>{g.nationality && ` · ${t("الجنسية", "Nationality")}: ${g.nationality}`}</p>
               <p className="font-semibold">{t("الحجوزات والإقامة", "Bookings & stays")}</p>
               {gb.map((b) => { const inv = s.invoices.find((i) => i.bookingId === b.id); const c = s.contracts.find((x) => x.bookingId === b.id); return (
                 <div key={b.id} className="rounded-lg border p-3">
@@ -69,7 +71,8 @@ function Guests() {
       <Dialog open={add} onOpenChange={setAdd}>
         <DialogContent>
           <DialogHeader><DialogTitle>{t("ملف جديد", "New profile")}</DialogTitle></DialogHeader>
-          <div className="grid gap-2">{(["name", "phone", "email", "nationalId", "org"] as const).map((k) => <Input key={k} placeholder={{ name: t("الاسم", "Name"), phone: t("الهاتف", "Phone"), email: t("البريد", "Email"), nationalId: t("الرقم القومي", "National ID"), org: t("الجامعة / الجهة", "Org") }[k]} value={f[k]} onChange={(e) => setF({ ...f, [k]: e.target.value })} />)}
+          <div className="grid gap-2">{(["name", "phone", "email", "org"] as const).map((k) => <Input key={k} placeholder={{ name: t("الاسم", "Name"), phone: t("الهاتف", "Phone"), email: t("البريد", "Email"), org: t("الجامعة / الجهة", "Org") }[k]} value={f[k]} onChange={(e) => setF({ ...f, [k]: e.target.value })} />)}
+            <GuestIdFields value={f} onChange={(v) => setF({ ...f, ...v })} />
             <Select value={f.gender} onValueChange={(v) => setF({ ...f, gender: v as Gender })}>
               <SelectTrigger><SelectValue placeholder={t("النوع", "Gender")} /></SelectTrigger>
               <SelectContent>

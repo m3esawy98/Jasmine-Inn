@@ -49,8 +49,13 @@ export interface Guest {
   kind: "student" | "guest";
   gender: Gender;
   org?: string;
-  nationalId: string;
+  idType: IdType;
+  /** 14-digit Egyptian national ID, or a passport number (uppercase letters/digits). */
+  idNumber: string;
+  /** Required for passport holders. */
+  nationality?: string;
 }
+export type IdType = "national_id" | "passport";
 export type Gender = "male" | "female";
 export type NewGuest = Omit<Guest, "id">;
 export type PlanPeriod = "daily" | "weekly" | "monthly" | "semester";

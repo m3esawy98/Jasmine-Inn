@@ -6,11 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PageHeader, Pill, Section } from "@/components/stay/kit";
+import { GuestIdFields } from "@/components/stay/GuestIdFields";
 import { actions, activeStayOnBed, bedConflict, can, getState, useDemo } from "@/lib/demo/store";
 import { computeRent } from "@/lib/demo/calc";
 import { useMoney, useT } from "@/lib/demo/ui";
 import { meta } from "@/lib/demo/meta";
-import type { Gender } from "@/lib/demo/types";
+import type { Gender, IdType } from "@/lib/demo/types";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -32,10 +33,10 @@ function NewBooking() {
   const [planId, setPlan] = useState("pl-month");
   const [start, setStart] = useState("2026-11-01");
   const [end, setEnd] = useState("2027-02-28");
-  const [g, setG] = useState<{ name: string; phone: string; email: string; nationalId: string; org: string; gender: Gender | "" }>(
+  const [g, setG] = useState<{ name: string; phone: string; email: string; idType: IdType; idNumber: string; nationality: string; org: string; gender: Gender | "" }>(
     scenarioMode
-      ? { name: "عمر حسن", phone: "01012345678", email: "omar.hassan@example.com", nationalId: "30405120101234", org: "جامعة القاهرة", gender: "male" }
-      : { name: "", phone: "", email: "", nationalId: "", org: "", gender: "" },
+      ? { name: "عمر حسن", phone: "01012345678", email: "omar.hassan@example.com", idType: "national_id", idNumber: "30405120101234", nationality: "", org: "جامعة القاهرة", gender: "male" }
+      : { name: "", phone: "", email: "", idType: "national_id", idNumber: "", nationality: "", org: "", gender: "" },
   );
   const [error, setError] = useState<string | null>(null);
 
@@ -87,7 +88,7 @@ function NewBooking() {
   const conflictTest = () => {
     const sb = getState().bookings.find((b) => b.id === getState().scenario.bookingId);
     if (!sb) { toast.error(t("احفظ حجز السيناريو أولًا", "Save the scenario booking first")); return; }
-    const res = actions.createBooking({ guest: { name: "ياسين مختار", phone: "01099990000", email: "yassin@example.com", nationalId: "30501010101010", kind: "student", gender: "male" }, bedId: sb.bedId, start: "2026-12-01", end: "2027-01-31", planId: "pl-month" });
+    const res = actions.createBooking({ guest: { name: "ياسين مختار", phone: "01099990000", email: "yassin@example.com", idType: "national_id", idNumber: "30501010101010", kind: "student", gender: "male" }, bedId: sb.bedId, start: "2026-12-01", end: "2027-01-31", planId: "pl-month" });
     if (!res.ok) {
       setError(res.error);
       actions.markConflictTested();
@@ -184,8 +185,8 @@ function NewBooking() {
               <Field label={t("الاسم", "Name")}><Input value={g.name} onChange={(e) => setG({ ...g, name: e.target.value })} /></Field>
               <Field label={t("الهاتف", "Phone")}><Input value={g.phone} onChange={(e) => setG({ ...g, phone: e.target.value })} /></Field>
               <Field label={t("البريد الإلكتروني", "Email")}><Input value={g.email} onChange={(e) => setG({ ...g, email: e.target.value })} /></Field>
-              <Field label={t("الرقم القومي", "National ID")}><Input value={g.nationalId} onChange={(e) => setG({ ...g, nationalId: e.target.value })} /></Field>
               <Field label={t("الجامعة / الجهة", "University / company")}><Input value={g.org} onChange={(e) => setG({ ...g, org: e.target.value })} /></Field>
+              <GuestIdFields value={g} onChange={(v) => setG({ ...g, ...v })} />
               <Field label={t("النوع", "Gender")}>
                 <Select value={g.gender} onValueChange={(v) => setG({ ...g, gender: v as Gender })}>
                   <SelectTrigger><SelectValue placeholder={t("اختر", "Select")} /></SelectTrigger>

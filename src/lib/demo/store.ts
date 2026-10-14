@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import type { Booking, DemoState, Gender, NewGuest, PayMethod, Role, Task, TaskStatus } from "./types";
+import type { Booking, DemoState, Gender, Guest, NewGuest, PayMethod, Role, Task, TaskStatus } from "./types";
 import { createSeed, DEMO_TODAY, ROLE_USERS, STATE_VERSION, buildSchedule } from "./seed";
 import { addMonths, computeRent, freeFrom, overlaps, validRange } from "./calc";
 
@@ -92,6 +92,29 @@ function next(s: DemoState, k: string) {
 const isScenario = (s: DemoState, bookingId: string) => s.scenario.bookingId === bookingId;
 const ACTIVE_BOOKING = ["pending", "confirmed", "checked_in"];
 
+// ---------------- guest identity ----------------
+/** Spaces are ignored and passport letters uppercased before checking. */
+export const normalizeIdNumber = (n: string) => n.replace(/\s+/g, "").toUpperCase();
+export const idNumberValid = (idType: Guest["idType"], n: string) =>
+  idType === "passport" ? /^[A-Z0-9]{6,9}$/.test(normalizeIdNumber(n)) : /^\d{14}$/.test(normalizeIdNumber(n));
+/** Validates and normalizes a new guest's name and ID document (national ID or passport). */
+export function checkGuest(g: NewGuest): Result<NewGuest> {
+  const name = g.name.trim();
+  if (!name) return { ok: false, error: "أدخل اسم النزيل/الطالب" };
+  const idNumber = normalizeIdNumber(g.idNumber);
+  if (g.idType === "passport") {
+    if (!idNumberValid("passport", idNumber))
+      return { ok: false, error: "رقم جواز السفر يجب أن يتكون من 6 إلى 9 حروف لاتينية أو أرقام" };
+    const nationality = g.nationality?.trim();
+    if (!nationality) return { ok: false, error: "أدخل الجنسية لحامل جواز السفر" };
+    return { ok: true, data: { ...g, name, idNumber, nationality } };
+  }
+  if (!idNumberValid("national_id", idNumber)) return { ok: false, error: "الرقم القومي يجب أن يتكون من 14 رقمًا" };
+  return { ok: true, data: { ...g, name, idNumber, nationality: undefined } };
+}
+const findGuestById = (s: DemoState, g: Pick<Guest, "idType" | "idNumber">) =>
+  s.guests.find((x) => x.idType === g.idType && x.idNumber === g.idNumber);
+
 // ---------------- availability ----------------
 const planPeriod = (s: DemoState, planId: string) => s.plans.find((p) => p.id === planId)?.period ?? "daily";
 export function bedConflict(s: DemoState, bedId: string, start: string, end: string, planId: string, ignoreId?: string) {
@@ -174,13 +197,14 @@ export const actions = {
     let guestId = input.guestId;
     if (!guestId) {
       if (!input.guest?.name.trim()) return { ok: false, error: "أدخل اسم النزيل/الطالب" };
-      // Match on national ID, not name: two people can share a name.
-      const nid = input.guest.nationalId.trim();
-      const existing = nid ? s.guests.find((g) => g.nationalId === nid) : undefined;
+      const checked = checkGuest(input.guest);
+      if (!checked.ok) return checked;
+      // Match on the ID document, not the name: two people can share a name.
+      const existing = findGuestById(s, checked.data!);
       if (existing) guestId = existing.id;
       else {
         const gid = `g${next(s, "G")}`;
-        s.guests = [...s.guests, { id: gid, ...input.guest!, name: input.guest!.name.trim() }];
+        s.guests = [...s.guests, { id: gid, ...checked.data! }];
         guestId = gid;
       }
     }
@@ -404,10 +428,12 @@ export const actions = {
 
   addGuest(g: NewGuest): Result {
     if (!can(state.role, "guest.edit")) return deny();
-    if (!g.name.trim()) return { ok: false, error: "الاسم مطلوب" };
+    const checked = checkGuest(g);
+    if (!checked.ok) return checked;
+    if (findGuestById(state, checked.data!)) return { ok: false, error: "يوجد ملف مسجل بنفس رقم الهوية" };
     const s = { ...state };
     const id = `g${next(s, "G")}`;
-    s.guests = [...s.guests, { id, ...g }];
+    s.guests = [...s.guests, { id, ...checked.data! }];
     state = log(s, `إضافة ملف ${g.kind === "student" ? "طالب" : "نزيل"}: ${g.name}`, id);
     emit();
     return { ok: true };

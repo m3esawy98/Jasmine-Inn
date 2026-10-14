@@ -58,6 +58,10 @@ export const TASK_STATUS: Record<TaskStatus, [string, string, string]> = {
   inspected: ["اجتاز الفحص", "Inspected", "primary"],
   approved: ["معتمدة للخدمة", "Approved", "success"],
 };
+export const ID_TYPE: Record<string, [string, string]> = {
+  national_id: ["الرقم القومي", "National ID"],
+  passport: ["جواز سفر", "Passport"],
+};
 export const METHOD: Record<string, [string, string]> = {
   cash: ["نقدي", "Cash"],
   bank: ["تحويل بنكي", "Bank transfer"],

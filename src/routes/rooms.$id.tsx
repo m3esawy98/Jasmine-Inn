@@ -10,7 +10,7 @@ import {
   useDemo,
 } from "@/lib/demo/store";
 import type { RoomType } from "@/lib/demo/types";
-import { BOOKING_STATUS, HK_STATUS, UNIT_STATUS, useDate, useMoney, useT } from "@/lib/demo/ui";
+import { BOOKING_STATUS, HK_STATUS, ID_TYPE, UNIT_STATUS, useDate, useMoney, useT } from "@/lib/demo/ui";
 import { meta } from "@/lib/demo/meta";
 import { cn } from "@/lib/utils";
 
@@ -126,7 +126,8 @@ function RoomDetail() {
                       </li>
                       <li className="flex items-center gap-2">
                         <IdCard className="size-3.5" />
-                        <span dir="ltr">{guest.nationalId}</span>
+                        {t(...ID_TYPE[guest.idType])}: <span dir="ltr">{guest.idNumber}</span>
+                        {guest.nationality && <Pill>{guest.nationality}</Pill>}
                       </li>
                       <li className="flex items-center gap-2">
                         <CalendarDays className="size-3.5" />

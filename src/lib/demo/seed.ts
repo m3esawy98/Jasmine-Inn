@@ -19,7 +19,7 @@ import type {
 import { addDays, addMonths, computeRent } from "./calc";
 
 export const DEMO_TODAY = "2026-11-01";
-export const STATE_VERSION = 5;
+export const STATE_VERSION = 6;
 
 function rng(seed: number) {
   let s = seed;
@@ -33,6 +33,7 @@ const FIRST: Record<Gender, string[]> = {
   male: ["أحمد", "محمد", "يوسف", "كريم", "مصطفى", "خالد", "زياد", "عمرو", "طارق", "حسام", "إياد", "سليم"],
   female: ["مريم", "سارة", "نور", "هبة", "ليلى", "آية", "فريدة", "دينا", "رنا", "ملك", "جنى", "هالة"],
 };
+const NATIONALITIES = ["السودان", "سوريا", "اليمن", "الأردن", "ماليزيا", "نيجيريا"];
 const LAST = ["السيد", "عبد الله", "إبراهيم", "فاروق", "الشريف", "منصور", "رضوان", "سالم", "عادل", "النجار", "شاكر", "حمدي", "الجمال", "زكي", "مراد"];
 const ORGS = ["جامعة القاهرة", "جامعة عين شمس", "الجامعة الأمريكية", "جامعة حلوان", "الجامعة البريطانية"];
 
@@ -117,8 +118,15 @@ export function createSeed(): DemoState {
       kind,
       gender,
       org: kind === "student" ? ORGS[Math.floor(r() * ORGS.length)] : undefined,
-      nationalId: `3${Math.floor(1e12 + r() * 8e12)}`,
+      idType: "national_id",
+      idNumber: `3${Math.floor(1e12 + r() * 8e12)}`,
     };
+    // Roughly one student in eight is an international student registered by passport.
+    if (kind === "student" && r() < 0.12) {
+      g.idType = "passport";
+      g.idNumber = `${"ABCNPS"[Math.floor(r() * 6)]}${Math.floor(1000000 + r() * 8999999)}`;
+      g.nationality = NATIONALITIES[Math.floor(r() * NATIONALITIES.length)];
+    }
     guests.push(g);
     return g;
   };
