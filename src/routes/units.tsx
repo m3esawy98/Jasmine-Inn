@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PageHeader, Pill, Section, StatusPill, run } from "@/components/stay/kit";
-import { actions, activeStayOnBed, can, guestName, roomStatus, useDemo } from "@/lib/demo/store";
+import { actions, activeStayOnBed, can, guestName, roomGenders, roomStatus, useDemo } from "@/lib/demo/store";
 import { UNIT_STATUS, useNum, useT } from "@/lib/demo/ui";
 import { meta } from "@/lib/demo/meta";
 import { cn } from "@/lib/utils";
@@ -49,14 +49,17 @@ function Units() {
                   const beds = s.beds.filter((x) => x.roomId === r.id);
                   const status = roomStatus(s, r.id);
                   const free = beds.filter((bd) => !activeStayOnBed(s, bd.id)).length;
+                  // Partially free rooms with a female resident must only take female students.
+                  const girls = status === "partial" && roomGenders(s, r.id).has("female");
                   return (
-                    <div key={r.id} className={cn("rounded-xl border p-3", r.code === "A-204" && "ring-2 ring-primary/40")}>
+                    <div key={r.id} className={cn("rounded-xl border p-3", girls && "border-female/40 bg-female-soft", r.code === "A-204" && "ring-2 ring-primary/40")}>
                       <div className="flex items-center justify-between"><b>{r.code}</b>{can(s.role, "unit.edit") && r.hk === "ready" && <button title={t("حجب للصيانة", "Block")} onClick={() => setBlock(r.id)}><Lock className="size-3.5 text-muted-foreground hover:text-destructive" /></button>}</div>
                       <div className="my-2 flex flex-wrap gap-1">{beds.map((bd) => { const st2 = activeStayOnBed(s, bd.id); const bk = st2 && s.bookings.find((x) => x.id === st2.bookingId); return <span key={bd.id} title={bk ? guestName(s, bk.guestId) : bd.label}><BedDouble className={cn("size-5", st2 ? "text-primary" : r.hk !== "ready" ? "text-warning" : "text-success")} /></span>; })}</div>
                       <div className="flex flex-wrap items-center gap-1.5">
                         <StatusPill map={UNIT_STATUS} value={status} />
+                        {girls && <Pill tone="female">{t("بنات فقط", "Female only")}</Pill>}
                         {status === "partial" && (
-                          <span className="text-xs font-medium text-success">
+                          <span className={cn("text-xs font-medium", girls ? "text-female" : "text-success")}>
                             {t(`متاح ${num(free)} من ${num(beds.length)}`, `Free ${num(free)} of ${num(beds.length)}`)}
                           </span>
                         )}
@@ -68,7 +71,7 @@ function Units() {
             </div>
           );
         })}
-        <div className="flex flex-wrap gap-4 text-xs text-muted-foreground"><span className="flex items-center gap-1"><BedDouble className="size-4 text-primary" />{t("مشغول", "Occupied")}</span><span className="flex items-center gap-1"><BedDouble className="size-4 text-success" />{t("متاح", "Free")}</span><span className="flex items-center gap-1"><BedDouble className="size-4 text-warning" />{t("غير جاهز", "Not ready")}</span><Pill>{t("حجب الوحدات متاح لمدير المنشأة والإدارة العليا", "Blocking: managers only")}</Pill></div>
+        <div className="flex flex-wrap gap-4 text-xs text-muted-foreground"><span className="flex items-center gap-1"><BedDouble className="size-4 text-primary" />{t("مشغول", "Occupied")}</span><span className="flex items-center gap-1"><BedDouble className="size-4 text-success" />{t("متاح", "Free")}</span><span className="flex items-center gap-1"><BedDouble className="size-4 text-warning" />{t("غير جاهز", "Not ready")}</span><span className="flex items-center gap-1"><span className="size-3 rounded-sm border border-female/40 bg-female-soft" />{t("متاحة جزئيًا وبها طالبات", "Partial with female residents")}</span><Pill>{t("حجب الوحدات متاح لمدير المنشأة والإدارة العليا", "Blocking: managers only")}</Pill></div>
       </Section>
       <Dialog open={!!block} onOpenChange={(o) => !o && setBlock(null)}>
         <DialogContent>

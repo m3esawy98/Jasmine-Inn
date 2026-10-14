@@ -47,9 +47,12 @@ export interface Guest {
   phone: string;
   email: string;
   kind: "student" | "guest";
+  gender: Gender;
   org?: string;
   nationalId: string;
 }
+export type Gender = "male" | "female";
+export type NewGuest = Omit<Guest, "id">;
 export type PlanPeriod = "daily" | "weekly" | "monthly" | "semester";
 export interface Plan {
   id: string;

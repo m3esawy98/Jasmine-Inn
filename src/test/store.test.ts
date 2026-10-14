@@ -1,7 +1,14 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { actions, getState, invoiceBalance, kpis, PERIOD_START } from "@/lib/demo/store";
-import type { Booking } from "@/lib/demo/types";
+import {
+  actions,
+  getState,
+  invoiceBalance,
+  kpis,
+  PERIOD_START,
+  roomGenders,
+} from "@/lib/demo/store";
+import type { Booking, Gender } from "@/lib/demo/types";
 
 // Scenario room A-204 is a quad: bed 1 is occupied (monthly, 2026-09-01 → 2027-01-31), beds 2-4 are free.
 const BED1 = "r-A-204-1";
@@ -15,6 +22,7 @@ const guest = (name = "ضيف تجريبي", nationalId = `299${String(++nid).pa
   phone: "01000000000",
   email: "test@example.com",
   kind: "student" as const,
+  gender: "male" as Gender,
   nationalId,
 });
 
@@ -190,6 +198,87 @@ describe("check-out from a shared room", () => {
   it("marks the room dirty when the last resident leaves", () => {
     expect(actions.checkOut(bookingOn(BED1).id, true).ok).toBe(true);
     expect(room().hk).toBe("dirty");
+  });
+});
+
+describe("room gender", () => {
+  it("gives every seeded guest a gender", () => {
+    expect(getState().guests.every((g) => g.gender === "male" || g.gender === "female")).toBe(true);
+  });
+
+  it("never houses both genders in one seeded room, and keeps the scenario room male", () => {
+    const s = getState();
+    expect(s.rooms.filter((r) => roomGenders(s, r.id).size > 1).map((r) => r.code)).toEqual([]);
+    expect([...roomGenders(s, ROOM)]).toEqual(["male"]);
+  });
+
+  it("reports female residents in a seeded girls' room", () => {
+    const s = getState();
+    const girls = s.rooms.find((r) => r.propertyId === "p1" && roomGenders(s, r.id).has("female"));
+    expect(girls).toBeDefined();
+  });
+
+  it("is empty for a vacant room", () => {
+    actions.checkOut(bookingOn(BED1).id, true);
+    expect(roomGenders(getState(), ROOM).size).toBe(0);
+  });
+});
+
+describe("single-gender shared rooms", () => {
+  const female = () => ({ ...guest(), gender: "female" as Gender });
+
+  it("rejects a female student in a room with a male resident", () => {
+    const res = actions.createBooking({
+      guest: female(),
+      bedId: BED2,
+      start: "2026-12-01",
+      end: "2026-12-31",
+      planId: "pl-month",
+    });
+    expect(res.ok).toBe(false);
+    expect(!res.ok && res.error).toContain("A-204");
+  });
+
+  it("rejects a male student in a room booked by a female student, even before she arrives", () => {
+    // Bed 1's male resident leaves after 2027-01-31; a female student books bed 2 from February.
+    book(BED2, "2027-02-01", "2027-05-31", "pl-month", female());
+    const res = actions.createBooking({
+      guest: guest(),
+      bedId: BED3,
+      start: "2027-03-01",
+      end: "2027-03-31",
+      planId: "pl-month",
+    });
+    expect(res.ok).toBe(false);
+  });
+
+  it("allows the other gender once the room's bookings have ended", () => {
+    // The male resident on bed 1 stays through 2027-01-31.
+    expect(() => book(BED2, "2027-02-01", "2027-05-31", "pl-month", female())).not.toThrow();
+  });
+
+  it("allows the same gender to share the room", () => {
+    expect(() => book(BED2, "2026-12-01", "2026-12-31")).not.toThrow();
+  });
+
+  it("uses the stored gender of an existing guest file", () => {
+    const g = female();
+    book(freeHotelBed(), "2026-12-01", "2026-12-03", "pl-night", g);
+    // Same national ID submitted as male: the file says female, so the male room rejects it.
+    const res = actions.createBooking({
+      guest: { ...g, gender: "male" },
+      bedId: BED2,
+      start: "2026-12-01",
+      end: "2026-12-31",
+      planId: "pl-month",
+    });
+    expect(res.ok).toBe(false);
+  });
+
+  it("doesn't restrict single-bed units", () => {
+    expect(() =>
+      book(freeHotelBed(), "2026-12-01", "2026-12-03", "pl-night", female()),
+    ).not.toThrow();
   });
 });
 

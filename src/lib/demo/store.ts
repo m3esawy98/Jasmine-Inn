@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import type { Booking, DemoState, PayMethod, Role, Task, TaskStatus } from "./types";
+import type { Booking, DemoState, Gender, NewGuest, PayMethod, Role, Task, TaskStatus } from "./types";
 import { createSeed, DEMO_TODAY, ROLE_USERS, STATE_VERSION, buildSchedule } from "./seed";
 import { addMonths, computeRent, freeFrom, overlaps, validRange } from "./calc";
 
@@ -104,6 +104,21 @@ export function bedConflict(s: DemoState, bedId: string, start: string, end: str
       overlaps(start, until, b.start, freeFrom(planPeriod(s, b.planId), b.end)),
   );
 }
+/** An overlapping active booking of the other gender in the same shared room, if any. */
+export function genderConflict(s: DemoState, bedId: string, start: string, end: string, planId: string, gender: Gender) {
+  const roomId = s.beds.find((b) => b.id === bedId)?.roomId;
+  const roomBeds = new Set(s.beds.filter((b) => b.roomId === roomId).map((b) => b.id));
+  if (roomBeds.size < 2) return undefined;
+  const until = freeFrom(planPeriod(s, planId), end);
+  return s.bookings.find(
+    (b) =>
+      roomBeds.has(b.bedId) &&
+      b.bedId !== bedId &&
+      ACTIVE_BOOKING.includes(b.status) &&
+      overlaps(start, until, b.start, freeFrom(planPeriod(s, b.planId), b.end)) &&
+      s.guests.find((g) => g.id === b.guestId)?.gender !== gender,
+  );
+}
 /** Start of the collections period shown on the dashboard (previous month through today). */
 export const PERIOD_START = addMonths(`${DEMO_TODAY.slice(0, 7)}-01`, -1);
 
@@ -132,7 +147,7 @@ export const actions = {
 
   createBooking(input: {
     guestId?: string;
-    guest?: { name: string; phone: string; email: string; kind: "student" | "guest"; org?: string; nationalId: string };
+    guest?: NewGuest;
     bedId: string;
     start: string;
     end: string;
@@ -168,6 +183,14 @@ export const actions = {
         s.guests = [...s.guests, { id: gid, ...input.guest!, name: input.guest!.name.trim() }];
         guestId = gid;
       }
+    }
+    const gender = s.guests.find((g) => g.id === guestId)?.gender;
+    const mixed = gender && genderConflict(s, bed.id, input.start, input.end, plan.id, gender);
+    if (mixed) {
+      return {
+        ok: false,
+        error: `مرفوض: الغرفة ${room.code} مخصصة ${gender === "male" ? "للطالبات" : "للطلاب"} في هذه الفترة (الحجز ${mixed.code}). لا يمكن تسكين ${gender === "male" ? "طالب" : "طالبة"} فيها.`,
+      };
     }
     const n = next(s, "BK");
     const booking: Booking = {
@@ -379,7 +402,7 @@ export const actions = {
     return { ok: true };
   },
 
-  addGuest(g: { name: string; phone: string; email: string; kind: "student" | "guest"; org?: string; nationalId: string }): Result {
+  addGuest(g: NewGuest): Result {
     if (!can(state.role, "guest.edit")) return deny();
     if (!g.name.trim()) return { ok: false, error: "الاسم مطلوب" };
     const s = { ...state };
@@ -412,6 +435,18 @@ export function bedProperty(s: DemoState, bedId: string) {
 export const activeStayOnBed = (s: DemoState, bedId: string) => s.stays.find((x) => x.bedId === bedId && x.status === "active");
 export const occupiedBeds = (s: DemoState, roomId: string) =>
   s.beds.filter((b) => b.roomId === roomId && activeStayOnBed(s, b.id)).length;
+/** Genders of the residents currently staying in a room (empty when vacant). */
+export function roomGenders(s: DemoState, roomId: string) {
+  const out = new Set<Gender>();
+  for (const b of s.beds) {
+    if (b.roomId !== roomId) continue;
+    const stay = activeStayOnBed(s, b.id);
+    const booking = stay && s.bookings.find((x) => x.id === stay.bookingId);
+    const guest = booking && s.guests.find((g) => g.id === booking.guestId);
+    if (guest) out.add(guest.gender);
+  }
+  return out;
+}
 
 export function invoicePaid(s: DemoState, invoiceId: string) {
   return s.payments.filter((p) => p.invoiceId === invoiceId).reduce((a, p) => a + p.amount, 0);

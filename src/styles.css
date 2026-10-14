@@ -36,6 +36,8 @@
   --color-warning-soft: var(--warning-soft);
   --color-info: var(--info);
   --color-info-soft: var(--info-soft);
+  --color-female: var(--female);
+  --color-female-soft: var(--female-soft);
   --color-navy: var(--navy);
   --color-navy-foreground: var(--navy-foreground);
   --color-border: var(--border);
@@ -84,6 +86,8 @@
   --warning-soft: oklch(0.96 0.05 80);
   --info: oklch(0.55 0.13 245);
   --info-soft: oklch(0.95 0.03 245);
+  --female: oklch(0.55 0.17 350);
+  --female-soft: oklch(0.96 0.03 350);
   --navy: oklch(0.25 0.05 255);
   --navy-foreground: oklch(0.97 0.01 220);
   --border: oklch(0.915 0.01 230);

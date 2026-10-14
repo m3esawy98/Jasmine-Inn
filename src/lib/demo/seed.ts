@@ -14,11 +14,12 @@ import type {
   Stay,
   Task,
   Activity,
+  Gender,
 } from "./types";
 import { addDays, addMonths, computeRent } from "./calc";
 
 export const DEMO_TODAY = "2026-11-01";
-export const STATE_VERSION = 3;
+export const STATE_VERSION = 4;
 
 function rng(seed: number) {
   let s = seed;
@@ -28,7 +29,10 @@ function rng(seed: number) {
   };
 }
 
-const FIRST = ["أحمد", "محمد", "يوسف", "مريم", "سارة", "كريم", "نور", "هبة", "مصطفى", "ليلى", "خالد", "آية", "زياد", "فريدة", "عمرو", "دينا", "طارق", "رنا", "حسام", "ملك", "إياد", "جنى", "سليم", "هالة"];
+const FIRST: Record<Gender, string[]> = {
+  male: ["أحمد", "محمد", "يوسف", "كريم", "مصطفى", "خالد", "زياد", "عمرو", "طارق", "حسام", "إياد", "سليم"],
+  female: ["مريم", "سارة", "نور", "هبة", "ليلى", "آية", "فريدة", "دينا", "رنا", "ملك", "جنى", "هالة"],
+};
 const LAST = ["السيد", "عبد الله", "إبراهيم", "فاروق", "الشريف", "منصور", "رضوان", "سالم", "عادل", "النجار", "شاكر", "حمدي", "الجمال", "زكي", "مراد"];
 const ORGS = ["جامعة القاهرة", "جامعة عين شمس", "الجامعة الأمريكية", "جامعة حلوان", "الجامعة البريطانية"];
 
@@ -101,15 +105,17 @@ export function createSeed(): DemoState {
   const activities: Activity[] = [];
   const c = { BK: 1000, CT: 500, INV: 2000, RC: 7000, ST: 0, TK: 300, G: 0 };
 
-  const newGuest = (kind: "student" | "guest") => {
+  const newGuest = (kind: "student" | "guest", gender: Gender = r() < 0.5 ? "female" : "male") => {
     c.G++;
-    const name = `${FIRST[Math.floor(r() * FIRST.length)]} ${LAST[Math.floor(r() * LAST.length)]}`;
+    const first = FIRST[gender][Math.floor(r() * FIRST[gender].length)];
+    const name = `${first} ${LAST[Math.floor(r() * LAST.length)]}`;
     const g: Guest = {
       id: `g${c.G}`,
       name,
       phone: `010${Math.floor(10000000 + r() * 89999999)}`,
       email: `guest${c.G}@example.com`,
       kind,
+      gender,
       org: kind === "student" ? ORGS[Math.floor(r() * ORGS.length)] : undefined,
       nationalId: `3${Math.floor(1e12 + r() * 8e12)}`,
     };
@@ -117,8 +123,16 @@ export function createSeed(): DemoState {
     return g;
   };
 
+  // Student rooms are single-gender; the scenario room is male (the scenario student is male).
+  const roomGender = new Map<string, Gender>();
+  const genderFor = (bed: Bed) => {
+    const room = rooms.find((x) => x.id === bed.roomId)!;
+    if (room.propertyId !== "p1") return undefined;
+    if (!roomGender.has(room.id)) roomGender.set(room.id, room.id === "r-A-204" || r() < 0.5 ? "male" : "female");
+    return roomGender.get(room.id);
+  };
   const makeBooking = (bed: Bed, planId: string, start: string, end: string, status: Booking["status"], kind: "student" | "guest") => {
-    const g = newGuest(kind);
+    const g = newGuest(kind, genderFor(bed));
     const plan = plans.find((p) => p.id === planId)!;
     const rent = computeRent(plan, start, end);
     c.BK++;

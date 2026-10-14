@@ -10,6 +10,7 @@ const TONES: Record<string, string> = {
   success: "bg-success-soft text-success border-success/20",
   warning: "bg-warning-soft text-warning border-warning/25",
   info: "bg-info-soft text-info border-info/20",
+  female: "bg-female-soft text-female border-female/25",
   destructive: "bg-destructive-soft text-destructive border-destructive/20",
   primary: "bg-primary-soft text-primary border-primary/20",
   muted: "bg-muted text-muted-foreground border-border",
