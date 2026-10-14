@@ -10,8 +10,15 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ContractsRouteImport } from './routes/contracts'
+import { Route as GuestsRouteImport } from './routes/guests'
 import { Route as HousekeepingRouteImport } from './routes/housekeeping'
+import { Route as PropertiesRouteImport } from './routes/properties'
+import { Route as ReportsRouteImport } from './routes/reports'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as StaysRouteImport } from './routes/stays'
+import { Route as UnitsRouteImport } from './routes/units'
+import { Route as UsersRouteImport } from './routes/users'
 import { Route as BookingsIndexRouteImport } from './routes/bookings.index'
 import { Route as BookingsIdRouteImport } from './routes/bookings.$id'
 import { Route as BookingsNewRouteImport } from './routes/bookings.new'
@@ -23,14 +30,49 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ContractsRoute = ContractsRouteImport.update({
+  id: '/contracts',
+  path: '/contracts',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GuestsRoute = GuestsRouteImport.update({
+  id: '/guests',
+  path: '/guests',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const HousekeepingRoute = HousekeepingRouteImport.update({
   id: '/housekeeping',
   path: '/housekeeping',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PropertiesRoute = PropertiesRouteImport.update({
+  id: '/properties',
+  path: '/properties',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReportsRoute = ReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const StaysRoute = StaysRouteImport.update({
   id: '/stays',
   path: '/stays',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UnitsRoute = UnitsRouteImport.update({
+  id: '/units',
+  path: '/units',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UsersRoute = UsersRouteImport.update({
+  id: '/users',
+  path: '/users',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BookingsIndexRoute = BookingsIndexRouteImport.update({
@@ -61,8 +103,15 @@ const FinanceIdRoute = FinanceIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/contracts': typeof ContractsRoute
+  '/guests': typeof GuestsRoute
   '/housekeeping': typeof HousekeepingRoute
+  '/properties': typeof PropertiesRoute
+  '/reports': typeof ReportsRoute
+  '/settings': typeof SettingsRoute
   '/stays': typeof StaysRoute
+  '/units': typeof UnitsRoute
+  '/users': typeof UsersRoute
   '/bookings/$id': typeof BookingsIdRoute
   '/bookings/new': typeof BookingsNewRoute
   '/finance/$id': typeof FinanceIdRoute
@@ -71,8 +120,15 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/contracts': typeof ContractsRoute
+  '/guests': typeof GuestsRoute
   '/housekeeping': typeof HousekeepingRoute
+  '/properties': typeof PropertiesRoute
+  '/reports': typeof ReportsRoute
+  '/settings': typeof SettingsRoute
   '/stays': typeof StaysRoute
+  '/units': typeof UnitsRoute
+  '/users': typeof UsersRoute
   '/bookings/$id': typeof BookingsIdRoute
   '/bookings/new': typeof BookingsNewRoute
   '/finance/$id': typeof FinanceIdRoute
@@ -82,8 +138,15 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/contracts': typeof ContractsRoute
+  '/guests': typeof GuestsRoute
   '/housekeeping': typeof HousekeepingRoute
+  '/properties': typeof PropertiesRoute
+  '/reports': typeof ReportsRoute
+  '/settings': typeof SettingsRoute
   '/stays': typeof StaysRoute
+  '/units': typeof UnitsRoute
+  '/users': typeof UsersRoute
   '/bookings/$id': typeof BookingsIdRoute
   '/bookings/new': typeof BookingsNewRoute
   '/finance/$id': typeof FinanceIdRoute
@@ -94,8 +157,15 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/contracts'
+    | '/guests'
     | '/housekeeping'
+    | '/properties'
+    | '/reports'
+    | '/settings'
     | '/stays'
+    | '/units'
+    | '/users'
     | '/bookings/$id'
     | '/bookings/new'
     | '/finance/$id'
@@ -104,8 +174,15 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/contracts'
+    | '/guests'
     | '/housekeeping'
+    | '/properties'
+    | '/reports'
+    | '/settings'
     | '/stays'
+    | '/units'
+    | '/users'
     | '/bookings/$id'
     | '/bookings/new'
     | '/finance/$id'
@@ -114,8 +191,15 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/contracts'
+    | '/guests'
     | '/housekeeping'
+    | '/properties'
+    | '/reports'
+    | '/settings'
     | '/stays'
+    | '/units'
+    | '/users'
     | '/bookings/$id'
     | '/bookings/new'
     | '/finance/$id'
@@ -125,8 +209,15 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ContractsRoute: typeof ContractsRoute
+  GuestsRoute: typeof GuestsRoute
   HousekeepingRoute: typeof HousekeepingRoute
+  PropertiesRoute: typeof PropertiesRoute
+  ReportsRoute: typeof ReportsRoute
+  SettingsRoute: typeof SettingsRoute
   StaysRoute: typeof StaysRoute
+  UnitsRoute: typeof UnitsRoute
+  UsersRoute: typeof UsersRoute
   BookingsIdRoute: typeof BookingsIdRoute
   BookingsNewRoute: typeof BookingsNewRoute
   FinanceIdRoute: typeof FinanceIdRoute
@@ -143,6 +234,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/contracts': {
+      id: '/contracts'
+      path: '/contracts'
+      fullPath: '/contracts'
+      preLoaderRoute: typeof ContractsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/guests': {
+      id: '/guests'
+      path: '/guests'
+      fullPath: '/guests'
+      preLoaderRoute: typeof GuestsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/housekeeping': {
       id: '/housekeeping'
       path: '/housekeeping'
@@ -150,11 +255,46 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HousekeepingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/properties': {
+      id: '/properties'
+      path: '/properties'
+      fullPath: '/properties'
+      preLoaderRoute: typeof PropertiesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reports': {
+      id: '/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof ReportsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/stays': {
       id: '/stays'
       path: '/stays'
       fullPath: '/stays'
       preLoaderRoute: typeof StaysRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/units': {
+      id: '/units'
+      path: '/units'
+      fullPath: '/units'
+      preLoaderRoute: typeof UnitsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/users': {
+      id: '/users'
+      path: '/users'
+      fullPath: '/users'
+      preLoaderRoute: typeof UsersRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/bookings/': {
@@ -197,8 +337,15 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ContractsRoute: ContractsRoute,
+  GuestsRoute: GuestsRoute,
   HousekeepingRoute: HousekeepingRoute,
+  PropertiesRoute: PropertiesRoute,
+  ReportsRoute: ReportsRoute,
+  SettingsRoute: SettingsRoute,
   StaysRoute: StaysRoute,
+  UnitsRoute: UnitsRoute,
+  UsersRoute: UsersRoute,
   BookingsIdRoute: BookingsIdRoute,
   BookingsNewRoute: BookingsNewRoute,
   FinanceIdRoute: FinanceIdRoute,

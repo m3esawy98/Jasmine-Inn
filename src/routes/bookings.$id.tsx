@@ -47,7 +47,7 @@ function BookingDetail() {
             <StatusPill map={BOOKING_STATUS} value={b.status} />
             {b.status === "pending" && (
               <>
-                <Button disabled={!review} onClick={() => { if (run(actions.confirmBooking(b.id), t("تم تأكيد الحجز وإنشاء العقد والفاتورة", "Booking confirmed; contract & invoice created")) && getState().scenario.tourActive && b.scenario) actions.tour({ step: 4 }); }}>
+                <Button disabled={!review} onClick={() => { if (run(actions.confirmBooking(b.id), t("تم تأكيد الحجز وإنشاء العقد والفاتورة", "Booking confirmed; contract & invoice created")) && getState().scenario.tourActive && b.scenario) { actions.tour({ step: 4 }); navigate({ to: "/stays" }); } }}>
                   <CheckCircle2 className="size-4" /> {t("تأكيد الحجز", "Confirm booking")}
                 </Button>
                 <Button variant="outline" disabled={!review} onClick={() => setDlg("rejected")}><XCircle className="size-4" />{t("رفض", "Reject")}</Button>
