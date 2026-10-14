@@ -459,6 +459,11 @@ export function bedProperty(s: DemoState, bedId: string) {
   return room ? s.properties.find((p) => p.id === room.propertyId) : undefined;
 }
 export const activeStayOnBed = (s: DemoState, bedId: string) => s.stays.find((x) => x.bedId === bedId && x.status === "active");
+/** The earliest pending or confirmed booking on a bed (not yet checked in), if any. */
+export const upcomingBookingOnBed = (s: DemoState, bedId: string) =>
+  s.bookings
+    .filter((b) => b.bedId === bedId && (b.status === "pending" || b.status === "confirmed"))
+    .sort((a, b) => a.start.localeCompare(b.start))[0];
 export const occupiedBeds = (s: DemoState, roomId: string) =>
   s.beds.filter((b) => b.roomId === roomId && activeStayOnBed(s, b.id)).length;
 /** Genders of the residents currently staying in a room (empty when vacant). */

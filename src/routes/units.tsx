@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PageHeader, Pill, Section, StatusPill, run } from "@/components/stay/kit";
-import { actions, activeStayOnBed, can, guestName, roomGenders, roomStatus, useDemo } from "@/lib/demo/store";
+import { actions, activeStayOnBed, can, DEMO_TODAY, guestName, roomGenders, roomStatus, upcomingBookingOnBed, useDemo } from "@/lib/demo/store";
 import { UNIT_STATUS, useNum, useT } from "@/lib/demo/ui";
 import { meta } from "@/lib/demo/meta";
 import { cn } from "@/lib/utils";
@@ -21,6 +21,13 @@ function Units() {
   const s = useDemo();
   const t = useT();
   const num = useNum();
+  const shortDate = (d: string) =>
+    new Date(`${d}T00:00:00`).toLocaleDateString(s.lang === "ar" ? "ar-EG" : "en-GB", {
+      day: "numeric",
+      month: "long",
+      // Only show the year when it isn't the current demo year.
+      ...(d.slice(0, 4) !== DEMO_TODAY.slice(0, 4) && { year: "numeric" }),
+    });
   const search = Route.useSearch();
   const navigate = useNavigate();
   const [pid, setPid] = useState(s.propertyFilter === "all" ? "p1" : s.propertyFilter);
@@ -53,7 +60,15 @@ function Units() {
                   // Partially free rooms with a female resident must only take female students.
                   const female = roomGenders(s, r.id).has("female");
                   const girls = status === "partial" && female;
-                  const hasResidents = status === "partial" || status === "full";
+                  // Free beds already promised to an upcoming (pending or confirmed) booking.
+                  const upcoming = beds
+                    .filter((bd) => !activeStayOnBed(s, bd.id))
+                    .map((bd) => upcomingBookingOnBed(s, bd.id))
+                    .filter((b) => !!b)
+                    .sort((a, b) => a.start.localeCompare(b.start));
+                  const hasResidents = status === "partial" || status === "full" || upcoming.length > 0;
+                  // Occupied, then upcoming, then free, so they sit in that order from the start (right in Arabic).
+                  const rank = (bedId: string) => (activeStayOnBed(s, bedId) ? 0 : upcomingBookingOnBed(s, bedId) ? 1 : 2);
                   return (
                     <div
                       key={r.id}
@@ -67,7 +82,7 @@ function Units() {
                       className={cn("rounded-xl border p-3", hasResidents && "cursor-pointer transition hover:border-primary/50 hover:shadow-sm", girls && "border-female/40 bg-female-soft", r.code === "A-204" && "ring-2 ring-primary/40")}
                     >
                       <div className="flex items-center justify-between"><b>{r.code}</b>{can(s.role, "unit.edit") && r.hk === "ready" && <button title={t("حجب للصيانة", "Block")} onClick={(e) => { e.stopPropagation(); setBlock(r.id); }}><Lock className="size-3.5 text-muted-foreground hover:text-destructive" /></button>}</div>
-                      <div className="my-2 flex flex-wrap gap-1">{/* occupied beds first, so they sit at the start (right in Arabic) */}{[...beds].sort((x, y) => Number(!!activeStayOnBed(s, y.id)) - Number(!!activeStayOnBed(s, x.id))).map((bd) => { const st2 = activeStayOnBed(s, bd.id); const bk = st2 && s.bookings.find((x) => x.id === st2.bookingId); return <span key={bd.id} title={bk ? guestName(s, bk.guestId) : bd.label}><BedDouble className={cn("size-5", st2 ? "text-muted-foreground/60" : r.hk !== "ready" ? "text-warning" : "text-success")} /></span>; })}</div>
+                      <div className="my-2 flex flex-wrap gap-1">{[...beds].sort((x, y) => rank(x.id) - rank(y.id)).map((bd) => { const st2 = activeStayOnBed(s, bd.id); const bk = st2 && s.bookings.find((x) => x.id === st2.bookingId); const next = !st2 && upcomingBookingOnBed(s, bd.id); return <span key={bd.id} title={bk ? guestName(s, bk.guestId) : next ? `${bd.label} · ${t("حجز قادم", "Upcoming")} ${next.code} ${shortDate(next.start)}` : bd.label}><BedDouble className={cn("size-5", st2 ? "text-muted-foreground/60" : r.hk !== "ready" ? "text-warning" : next ? "text-info" : "text-success")} /></span>; })}</div>
                       <div className="flex flex-wrap items-center gap-1.5">
                         <StatusPill map={UNIT_STATUS} value={status} />
                         {girls && <Pill tone="female">{t("بنات فقط", "Female only")}</Pill>}
@@ -78,6 +93,13 @@ function Units() {
                           </span>
                         )}
                       </div>
+                      {upcoming.length > 0 && (
+                        <p className="mt-1.5 text-xs font-medium text-info">
+                          {upcoming.length === 1
+                            ? t(`حجز قادم من ${shortDate(upcoming[0].start)}`, `Upcoming booking from ${shortDate(upcoming[0].start)}`)
+                            : t(`${num(upcoming.length)} حجوزات قادمة · أقربها ${shortDate(upcoming[0].start)}`, `${num(upcoming.length)} upcoming · first ${shortDate(upcoming[0].start)}`)}
+                        </p>
+                      )}
                     </div>
                   );
                 })}
@@ -85,7 +107,7 @@ function Units() {
             </div>
           );
         })}
-        <div className="flex flex-wrap gap-4 text-xs text-muted-foreground"><span className="flex items-center gap-1"><BedDouble className="size-4 text-muted-foreground/60" />{t("مشغول", "Occupied")}</span><span className="flex items-center gap-1"><BedDouble className="size-4 text-success" />{t("متاح", "Free")}</span><span className="flex items-center gap-1"><BedDouble className="size-4 text-warning" />{t("غير جاهز", "Not ready")}</span><span className="flex items-center gap-1"><span className="size-3 rounded-sm border border-female/40 bg-female-soft" />{t("متاحة جزئيًا وبها طالبات", "Partial with female residents")}</span><Pill>{t("حجب الوحدات متاح لمدير المنشأة والإدارة العليا", "Blocking: managers only")}</Pill></div>
+        <div className="flex flex-wrap gap-4 text-xs text-muted-foreground"><span className="flex items-center gap-1"><BedDouble className="size-4 text-muted-foreground/60" />{t("مشغول", "Occupied")}</span><span className="flex items-center gap-1"><BedDouble className="size-4 text-success" />{t("متاح", "Free")}</span><span className="flex items-center gap-1"><BedDouble className="size-4 text-info" />{t("متاح وعليه حجز قادم", "Free, upcoming booking")}</span><span className="flex items-center gap-1"><BedDouble className="size-4 text-warning" />{t("غير جاهز", "Not ready")}</span><span className="flex items-center gap-1"><span className="size-3 rounded-sm border border-female/40 bg-female-soft" />{t("متاحة جزئيًا وبها طالبات", "Partial with female residents")}</span><Pill>{t("حجب الوحدات متاح لمدير المنشأة والإدارة العليا", "Blocking: managers only")}</Pill></div>
       </Section>
       <Dialog open={!!block} onOpenChange={(o) => !o && setBlock(null)}>
         <DialogContent>
