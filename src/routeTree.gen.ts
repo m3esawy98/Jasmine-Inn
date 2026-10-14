@@ -10,13 +10,27 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as HousekeepingRouteImport } from './routes/housekeeping'
+import { Route as StaysRouteImport } from './routes/stays'
 import { Route as BookingsIndexRouteImport } from './routes/bookings.index'
 import { Route as BookingsIdRouteImport } from './routes/bookings.$id'
 import { Route as BookingsNewRouteImport } from './routes/bookings.new'
+import { Route as FinanceIndexRouteImport } from './routes/finance.index'
+import { Route as FinanceIdRouteImport } from './routes/finance.$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HousekeepingRoute = HousekeepingRouteImport.update({
+  id: '/housekeeping',
+  path: '/housekeeping',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StaysRoute = StaysRouteImport.update({
+  id: '/stays',
+  path: '/stays',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BookingsIndexRoute = BookingsIndexRouteImport.update({
@@ -34,39 +48,90 @@ const BookingsNewRoute = BookingsNewRouteImport.update({
   path: '/bookings/new',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FinanceIndexRoute = FinanceIndexRouteImport.update({
+  id: '/finance/',
+  path: '/finance/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FinanceIdRoute = FinanceIdRouteImport.update({
+  id: '/finance/$id',
+  path: '/finance/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/housekeeping': typeof HousekeepingRoute
+  '/stays': typeof StaysRoute
   '/bookings/$id': typeof BookingsIdRoute
   '/bookings/new': typeof BookingsNewRoute
+  '/finance/$id': typeof FinanceIdRoute
   '/bookings/': typeof BookingsIndexRoute
+  '/finance/': typeof FinanceIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/housekeeping': typeof HousekeepingRoute
+  '/stays': typeof StaysRoute
   '/bookings/$id': typeof BookingsIdRoute
   '/bookings/new': typeof BookingsNewRoute
+  '/finance/$id': typeof FinanceIdRoute
   '/bookings': typeof BookingsIndexRoute
+  '/finance': typeof FinanceIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/housekeeping': typeof HousekeepingRoute
+  '/stays': typeof StaysRoute
   '/bookings/$id': typeof BookingsIdRoute
   '/bookings/new': typeof BookingsNewRoute
+  '/finance/$id': typeof FinanceIdRoute
   '/bookings/': typeof BookingsIndexRoute
+  '/finance/': typeof FinanceIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/bookings/$id' | '/bookings/new' | '/bookings/'
+  fullPaths:
+    | '/'
+    | '/housekeeping'
+    | '/stays'
+    | '/bookings/$id'
+    | '/bookings/new'
+    | '/finance/$id'
+    | '/bookings/'
+    | '/finance/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/bookings/$id' | '/bookings/new' | '/bookings'
-  id: '__root__' | '/' | '/bookings/$id' | '/bookings/new' | '/bookings/'
+  to:
+    | '/'
+    | '/housekeeping'
+    | '/stays'
+    | '/bookings/$id'
+    | '/bookings/new'
+    | '/finance/$id'
+    | '/bookings'
+    | '/finance'
+  id:
+    | '__root__'
+    | '/'
+    | '/housekeeping'
+    | '/stays'
+    | '/bookings/$id'
+    | '/bookings/new'
+    | '/finance/$id'
+    | '/bookings/'
+    | '/finance/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  HousekeepingRoute: typeof HousekeepingRoute
+  StaysRoute: typeof StaysRoute
   BookingsIdRoute: typeof BookingsIdRoute
   BookingsNewRoute: typeof BookingsNewRoute
+  FinanceIdRoute: typeof FinanceIdRoute
   BookingsIndexRoute: typeof BookingsIndexRoute
+  FinanceIndexRoute: typeof FinanceIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -76,6 +141,20 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/housekeeping': {
+      id: '/housekeeping'
+      path: '/housekeeping'
+      fullPath: '/housekeeping'
+      preLoaderRoute: typeof HousekeepingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/stays': {
+      id: '/stays'
+      path: '/stays'
+      fullPath: '/stays'
+      preLoaderRoute: typeof StaysRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/bookings/': {
@@ -99,14 +178,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BookingsNewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/finance/': {
+      id: '/finance/'
+      path: '/finance'
+      fullPath: '/finance/'
+      preLoaderRoute: typeof FinanceIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/finance/$id': {
+      id: '/finance/$id'
+      path: '/finance/$id'
+      fullPath: '/finance/$id'
+      preLoaderRoute: typeof FinanceIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  HousekeepingRoute: HousekeepingRoute,
+  StaysRoute: StaysRoute,
   BookingsIdRoute: BookingsIdRoute,
   BookingsNewRoute: BookingsNewRoute,
+  FinanceIdRoute: FinanceIdRoute,
   BookingsIndexRoute: BookingsIndexRoute,
+  FinanceIndexRoute: FinanceIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
