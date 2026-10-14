@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import type { Booking, DemoState, Gender, Guest, NewGuest, PayMethod, Role, Task, TaskStatus } from "./types";
+import type { Booking, DemoState, Gender, Guest, InspectionItem, ItemCondition, NewGuest, PayMethod, Role, RoomType, Task, TaskStatus } from "./types";
 import { createSeed, DEMO_TODAY, ROLE_USERS, STATE_VERSION, buildSchedule } from "./seed";
 import { addMonths, computeRent, freeFrom, overlaps, validRange } from "./calc";
 
@@ -53,6 +53,8 @@ export type Perm =
   | "booking.review"
   | "stay.checkin"
   | "stay.checkout"
+  | "stay.inspect"
+  | "inspection.approve"
   | "payment.record"
   | "payment.correct"
   | "task.update"
@@ -61,14 +63,14 @@ export type Perm =
   | "pricing.edit"
   | "guest.edit"
   | "demo.reset";
-const ALL: Perm[] = ["booking.create", "booking.review", "stay.checkin", "stay.checkout", "payment.record", "payment.correct", "task.update", "task.approve", "unit.edit", "pricing.edit", "guest.edit", "demo.reset"];
+const ALL: Perm[] = ["booking.create", "booking.review", "stay.checkin", "stay.checkout", "stay.inspect", "inspection.approve", "payment.record", "payment.correct", "task.update", "task.approve", "unit.edit", "pricing.edit", "guest.edit", "demo.reset"];
 export const PERMS: Record<Role, Perm[]> = {
   exec: ALL,
   manager: ALL,
   reservations: ["booking.create", "booking.review", "guest.edit"],
   frontdesk: ["booking.create", "stay.checkin", "stay.checkout", "guest.edit"],
   accountant: ["payment.record", "payment.correct"],
-  housekeeping: ["task.update", "task.approve"],
+  housekeeping: ["task.update", "task.approve", "stay.inspect"],
   auditor: [],
 };
 export const can = (role: Role, p: Perm) => PERMS[role].includes(p);
@@ -327,6 +329,19 @@ export const actions = {
     const stay = s.stays.find((x) => x.bookingId === id && x.status === "active");
     if (!b || !stay) return { ok: false, error: "لا توجد إقامة فعلية نشطة" };
     if (DEMO_TODAY < b.end && !earlyApproved) return { ok: false, error: "المدة لم تنتهِ بعد؛ يلزم اعتماد مغادرة مبكرة" };
+    if (b.inspection?.status !== "approved")
+      return { ok: false, error: "يلزم فحص الغرفة قبل المغادرة، واعتماد المدير لأي خصومات" };
+    // Settle the deposit: damages come out of it first, anything beyond it stays on the invoice.
+    const settlement = checkoutSettlement(s, b);
+    const inv = s.invoices.find((i) => i.bookingId === id && i.status === "open");
+    if (inv) {
+      const lines = [...inv.lines];
+      if (settlement.damages > 0)
+        lines.push({ label: "تلفيات ومفقودات (فحص المغادرة)", labelEn: "Damages & missing items (check-out inspection)", amount: settlement.damages, kind: "fee" });
+      if (settlement.deposit > 0)
+        lines.push({ label: "رد التأمين عند المغادرة", labelEn: "Deposit returned at check-out", amount: -settlement.deposit, kind: "deposit" });
+      s.invoices = s.invoices.map((i) => (i.id === inv.id ? { ...i, lines } : i));
+    }
     const at = nowIso();
     const bed = s.beds.find((x) => x.id === b.bedId)!;
     const room = s.rooms.find((r) => r.id === bed.roomId)!;
@@ -343,7 +358,79 @@ export const actions = {
       { id: `tk${t}`, code: `TK-${t}`, roomId: room.id, type: "cleaning", title: `تنظيف وفحص ${shared ? bed.label + " " : ""}بعد مغادرة ${guestName(s, b.guestId)}`, status: "new", priority: "high", notes: [], createdAt: at, source: b.code },
       ...s.tasks,
     ];
-    state = log(s, `تسجيل مغادرة ${guestName(s, b.guestId)} وإنشاء مهمة تنظيف TK-${t} للغرفة ${room.code}`, b.code, isScenario(s, id));
+    state = log(
+      s,
+      `تسجيل مغادرة ${guestName(s, b.guestId)} وإنشاء مهمة تنظيف TK-${t} للغرفة ${room.code}` +
+        (settlement.damages || settlement.deposit ? ` · تسوية التأمين: خصم ${settlement.damages.toLocaleString("ar-EG")} من تأمين ${settlement.deposit.toLocaleString("ar-EG")} ج.م.` : ""),
+      b.code,
+      isScenario(s, id),
+    );
+    emit();
+    return { ok: true };
+  },
+
+  /** Housekeeping records the room's condition before the guest leaves. */
+  recordInspection(bookingId: string, input: { key: string; condition: ItemCondition; note?: string; charge?: number }[]): Result {
+    if (!can(state.role, "stay.inspect")) return deny();
+    const s = { ...state };
+    const b = s.bookings.find((x) => x.id === bookingId);
+    if (!b || b.status !== "checked_in") return { ok: false, error: "الفحص متاح للمقيمين حاليًا فقط" };
+    const items: InspectionItem[] = [];
+    for (const tpl of inspectionChecklist(s, b.bedId)) {
+      const row = input.find((x) => x.key === tpl.key);
+      if (!row) return { ok: false, error: `حدد حالة: ${tpl.label}` };
+      if (row.condition === "ok") {
+        items.push({ ...tpl, condition: "ok", charge: 0 });
+        continue;
+      }
+      const note = row.note?.trim();
+      if (!note) return { ok: false, error: `اكتب وصف ${row.condition === "missing" ? "المفقود" : "التلف"}: ${tpl.label}` };
+      const charge = row.charge ?? 0;
+      if (!Number.isFinite(charge) || charge < 0) return { ok: false, error: `قيمة الخصم غير صحيحة: ${tpl.label}` };
+      items.push({ ...tpl, condition: row.condition, note, charge });
+    }
+    const total = items.reduce((a, x) => a + x.charge, 0);
+    const at = nowIso();
+    const inspection = { items, total, by: user(), at, status: total > 0 ? ("pending_approval" as const) : ("approved" as const) };
+    const issues = items.filter((x) => x.condition !== "ok").length;
+    const text = issues
+      ? `فحص الغرفة قبل المغادرة: ${issues} ملاحظات بخصومات ${total.toLocaleString("ar-EG")} ج.م.${total > 0 ? " — بانتظار اعتماد المدير" : ""}`
+      : "فحص الغرفة قبل المغادرة: كل المحتويات سليمة";
+    s.bookings = s.bookings.map((x) => (x.id === bookingId ? { ...x, inspection, events: [...x.events, { at, text, user: user() }] } : x));
+    state = log(s, `${text} (${b.code})`, b.code, isScenario(s, bookingId));
+    emit();
+    return { ok: true };
+  },
+
+  /** A manager approves or rejects the charges from a pre-check-out inspection. */
+  reviewInspection(bookingId: string, approve: boolean, reason = ""): Result {
+    if (!can(state.role, "inspection.approve")) return deny();
+    const s = { ...state };
+    const b = s.bookings.find((x) => x.id === bookingId);
+    if (!b?.inspection || b.inspection.status !== "pending_approval") return { ok: false, error: "لا يوجد فحص بانتظار الاعتماد" };
+    if (!approve && !reason.trim()) return { ok: false, error: "سبب رفض الخصومات مطلوب" };
+    const at = nowIso();
+    const inspection = { ...b.inspection, status: approve ? ("approved" as const) : ("rejected" as const), reviewedBy: user(), reviewedAt: at, rejectReason: approve ? undefined : reason.trim() };
+    const text = approve
+      ? `اعتماد خصومات الفحص ${b.inspection.total.toLocaleString("ar-EG")} ج.م.`
+      : `رفض خصومات الفحص وإعادته لمسؤول النظافة: ${reason.trim()}`;
+    s.bookings = s.bookings.map((x) => (x.id === bookingId ? { ...x, inspection, events: [...x.events, { at, text, user: user() }] } : x));
+    state = log(s, `${text} (${b.code})`, b.code, isScenario(s, bookingId));
+    emit();
+    return { ok: true };
+  },
+
+  /** Pays back a credit owed to the guest (e.g. the unused deposit after check-out). */
+  refundCredit(invoiceId: string, method: PayMethod, reference: string): Result {
+    if (!can(state.role, "payment.record")) return deny();
+    const s = { ...state };
+    const inv = s.invoices.find((i) => i.id === invoiceId);
+    if (!inv) return { ok: false, error: "الفاتورة غير متاحة" };
+    const bal = invoiceBalance(s, invoiceId);
+    if (bal >= 0) return { ok: false, error: "لا يوجد مبلغ مستحق للنزيل" };
+    const n = next(s, "RC");
+    s.payments = [...s.payments, { id: `pm${n}`, code: `RC-${n}`, invoiceId, amount: bal, method, reference, at: nowIso(), date: DEMO_TODAY, user: user(), note: "رد مبلغ مستحق للنزيل" }];
+    state = log(s, `رد ${(-bal).toLocaleString("ar-EG")} ج.م. للنزيل على ${inv.code} (إيصال RC-${n})`, inv.code);
     emit();
     return { ok: true };
   },
@@ -494,12 +581,47 @@ export function invoiceOverdue(s: DemoState, id: string) {
   const inv = s.invoices.find((i) => i.id === id);
   if (!inv || inv.status === "void") return 0;
   const due = inv.schedule.filter((x) => x.due < DEMO_TODAY).reduce((a, x) => a + x.amount, 0);
-  return Math.max(0, due - invoicePaid(s, id));
+  // Never more than what's actually still owed (check-out settlement can change the total after the schedule).
+  return Math.min(Math.max(0, due - invoicePaid(s, id)), Math.max(0, invoiceBalance(s, id)));
 }
 export function depositHeld(s: DemoState, id: string) {
   const inv = s.invoices.find((i) => i.id === id);
   const dep = inv?.lines.filter((l) => l.kind === "deposit").reduce((a, l) => a + l.amount, 0) ?? 0;
   return Math.min(dep, Math.max(0, invoicePaid(s, id)));
+}
+
+// ---------------- check-out inspection ----------------
+const BASE_ITEMS: [string, string, string][] = [
+  ["key", "مفتاح / بطاقة الغرفة", "Room key / card"],
+  ["bed", "السرير والمرتبة والمفروشات", "Bed, mattress & linen"],
+  ["furniture", "الخزانة والمكتب والكرسي", "Wardrobe, desk & chair"],
+  ["ac", "جهاز التكييف وجهاز التحكم", "Air conditioner & remote"],
+  ["bathroom", "دورة المياه والتجهيزات", "Bathroom & fixtures"],
+  ["walls", "الجدران والأرضيات والأبواب", "Walls, floors & doors"],
+];
+const EXTRA_ITEMS: Partial<Record<RoomType, [string, string, string][]>> = {
+  hotel: [
+    ["tv", "التلفاز", "TV"],
+    ["minibar", "الميني بار", "Minibar"],
+  ],
+  apartment: [
+    ["tv", "التلفاز", "TV"],
+    ["kitchen", "المطبخ والأجهزة والأواني", "Kitchen, appliances & utensils"],
+  ],
+};
+/** The items to check for a bed's room, by room type. */
+export function inspectionChecklist(s: DemoState, bedId: string) {
+  const bed = s.beds.find((b) => b.id === bedId);
+  const room = bed && s.rooms.find((r) => r.id === bed.roomId);
+  return [...BASE_ITEMS, ...((room && EXTRA_ITEMS[room.type]) ?? [])].map(([key, label, labelEn]) => ({ key, label, labelEn }));
+}
+/** Deposit on the invoice, approved damages, and the invoice balance once check-out settles them. */
+export function checkoutSettlement(s: DemoState, b: Booking) {
+  const inv = s.invoices.find((i) => i.bookingId === b.id && i.status === "open");
+  const deposit = inv?.lines.filter((l) => l.kind === "deposit").reduce((a, l) => a + l.amount, 0) ?? 0;
+  const damages = b.inspection?.total ?? 0;
+  const balanceAfter = (inv ? invoiceBalance(s, inv.id) : 0) - deposit + damages;
+  return { deposit, damages, balanceAfter };
 }
 
 export function checkInBlockers(s: DemoState, b: Booking) {

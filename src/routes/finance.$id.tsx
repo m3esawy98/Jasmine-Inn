@@ -31,6 +31,9 @@ function InvoicePage() {
   const [receipt, setReceipt] = useState<string | null>(null);
   const [corr, setCorr] = useState<string | null>(null);
   const [reason, setReason] = useState("");
+  const [refund, setRefund] = useState(false);
+  const [refundMethod, setRefundMethod] = useState<PayMethod>("cash");
+  const [refundRef, setRefundRef] = useState("");
   const inv = s.invoices.find((i) => i.id === id);
   if (!inv) return <p>{t("الفاتورة غير موجودة", "Invoice not found")}</p>;
   const b = s.bookings.find((x) => x.id === inv.bookingId)!;
@@ -41,10 +44,13 @@ function InvoicePage() {
   return (
     <div>
       <PageHeader title={`${t("الملف المالي", "Financial file")} — ${g.name}`} subtitle={`${inv.code} · ${bedLabel(s, b.bedId)} · `} actions={
-        <Button disabled={!can(s.role, "payment.record") || bal <= 0 || inv.status === "void"} onClick={() => setOpen(true)}><Receipt className="size-4" />{t("تسجيل دفعة", "Record payment")}</Button>
+        <>
+          {bal < 0 && <Button variant="outline" disabled={!can(s.role, "payment.record")} onClick={() => setRefund(true)}><Undo2 className="size-4" />{t("رد المبلغ للنزيل", "Refund guest")}</Button>}
+          <Button disabled={!can(s.role, "payment.record") || bal <= 0 || inv.status === "void"} onClick={() => setOpen(true)}><Receipt className="size-4" />{t("تسجيل دفعة", "Record payment")}</Button>
+        </>
       } />
       <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
-        {[[t("إجمالي الفاتورة", "Total"), money(total), ""], [t("المحصل", "Paid"), money(paid), "text-success"], [t("الرصيد المتبقي", "Balance"), money(bal), "text-primary"], [t("متأخر", "Overdue"), money(invoiceOverdue(s, id)), "text-destructive"]].map(([k, v, c]) => (
+        {[[t("إجمالي الفاتورة", "Total"), money(total), ""], [t("المحصل", "Paid"), money(paid), "text-success"], bal < 0 ? [t("مستحق للنزيل", "Owed to guest"), money(-bal), "text-success"] : [t("الرصيد المتبقي", "Balance"), money(bal), "text-primary"], [t("متأخر", "Overdue"), money(invoiceOverdue(s, id)), "text-destructive"]].map(([k, v, c]) => (
           <div key={k} className="card-surface p-4"><p className="text-xs text-muted-foreground">{k}</p><p className={`mt-1 font-display text-2xl font-bold tabular-nums ${c}`}>{v}</p></div>
         ))}
       </div>
@@ -60,7 +66,7 @@ function InvoicePage() {
           {pays.length === 0 && <p className="text-sm text-muted-foreground">{t("لا توجد مدفوعات بعد", "No payments yet")}</p>}
           <ul className="divide-y text-sm">{pays.map((p) => (
             <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
-              <span><b>{p.code}</b> · {t(...METHOD[p.method])} {p.reference && `· ${p.reference}`} {p.reversalOf && <Pill tone="warning">{t("قيد تصحيح:", "Correction:")} {p.note}</Pill>} {p.reversed && <Pill>{t("معكوس", "Reversed")}</Pill>}<span className="block text-xs text-muted-foreground">{p.user} · {fmt(p.at, true)}</span></span>
+              <span><b>{p.code}</b> · {t(...METHOD[p.method])} {p.reference && `· ${p.reference}`} {p.reversalOf && <Pill tone="warning">{t("قيد تصحيح:", "Correction:")} {p.note}</Pill>} {p.reversed && <Pill>{t("معكوس", "Reversed")}</Pill>} {!p.reversalOf && p.note && <Pill tone="info">{p.amount < 0 ? t("رد للنزيل", "Refund") : p.note}</Pill>}<span className="block text-xs text-muted-foreground">{p.user} · {fmt(p.at, true)}</span></span>
               <span className="flex items-center gap-2"><b className="tabular-nums">{money(p.amount)}</b>
                 <Button size="sm" variant="ghost" onClick={() => setReceipt(p.id)}><Printer className="size-4" /></Button>
                 {!p.reversed && !p.reversalOf && <Button size="sm" variant="ghost" disabled={!can(s.role, "payment.correct")} onClick={() => setCorr(p.id)} title={t("تصحيح موثق", "Documented correction")}><Undo2 className="size-4" /></Button>}</span>
@@ -96,6 +102,19 @@ function InvoicePage() {
             <p className="text-xs text-muted-foreground">{t("المستلم:", "Received by:")} {rp.user}</p>
           </div>}
           <DialogFooter><Button onClick={() => window.print()}><Printer className="size-4" />{t("طباعة", "Print")}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={refund} onOpenChange={setRefund}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>{t("رد المبلغ المستحق للنزيل", "Refund amount owed to guest")} — {inv.code}</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">{t("المبلغ:", "Amount:")} <b className="text-foreground">{money(-bal)}</b></p>
+            <div><Label>{t("طريقة الرد", "Method")}</Label>
+              <Select value={refundMethod} onValueChange={(v) => setRefundMethod(v as PayMethod)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{Object.entries(METHOD).map(([k, v]) => <SelectItem key={k} value={k}>{t(...v)}</SelectItem>)}</SelectContent></Select></div>
+            <div><Label>{t("المرجع (اختياري)", "Reference")}</Label><Input value={refundRef} onChange={(e) => setRefundRef(e.target.value)} /></div>
+          </div>
+          <DialogFooter><Button onClick={() => { if (run(actions.refundCredit(id, refundMethod, refundRef), t("تم تسجيل رد المبلغ للنزيل", "Refund recorded"))) { setRefund(false); setRefundRef(""); } }}>{t("تأكيد الرد", "Confirm refund")}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 

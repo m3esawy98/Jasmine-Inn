@@ -4,12 +4,14 @@ import {
   actions,
   activeStayOnBed,
   getState,
+  inspectionChecklist,
   invoiceBalance,
+  invoiceOverdue,
   kpis,
   PERIOD_START,
   roomGenders,
 } from "@/lib/demo/store";
-import type { Booking, Gender, IdType } from "@/lib/demo/types";
+import type { Booking, Gender, IdType, ItemCondition } from "@/lib/demo/types";
 
 // Scenario room A-204 is a quad: bed 1 is occupied (monthly, 2026-09-01 → 2027-01-31), beds 2-4 are free.
 const BED1 = "r-A-204-1";
@@ -52,6 +54,21 @@ function freeHotelBed() {
   });
   if (!bed) throw new Error("no free hotel bed in seed");
   return bed.id;
+}
+
+type Finding = { condition: ItemCondition; note?: string; charge?: number };
+/** Inspection rows for a booking's room: everything OK unless overridden by item key. */
+function inspectionRows(bookingId: string, findings: Record<string, Finding> = {}) {
+  const b = getState().bookings.find((x) => x.id === bookingId)!;
+  return inspectionChecklist(getState(), b.bedId).map((c) => ({
+    key: c.key,
+    ...(findings[c.key] ?? { condition: "ok" as ItemCondition }),
+  }));
+}
+/** Records a clean inspection, then checks out (early check-out approved). */
+function checkOutClean(bookingId: string) {
+  expect(actions.recordInspection(bookingId, inspectionRows(bookingId)).ok).toBe(true);
+  return actions.checkOut(bookingId, true);
 }
 
 const room = () => getState().rooms.find((r) => r.id === ROOM)!;
@@ -246,7 +263,7 @@ describe("check-out from a shared room", () => {
     const b2 = book(BED2, "2026-11-01", "2026-11-30");
     confirmAndCheckIn(b2);
 
-    expect(actions.checkOut(bookingOn(BED1).id, true).ok).toBe(true);
+    expect(checkOutClean(bookingOn(BED1).id).ok).toBe(true);
     expect(room().hk).toBe("ready");
     const task = getState().tasks.find((t) => t.roomId === ROOM && t.status === "new")!;
     expect(task.type).toBe("cleaning");
@@ -263,7 +280,7 @@ describe("check-out from a shared room", () => {
   });
 
   it("marks the room dirty when the last resident leaves", () => {
-    expect(actions.checkOut(bookingOn(BED1).id, true).ok).toBe(true);
+    expect(checkOutClean(bookingOn(BED1).id).ok).toBe(true);
     expect(room().hk).toBe("dirty");
   });
 });
@@ -297,7 +314,7 @@ describe("room gender", () => {
   });
 
   it("is empty for a vacant room", () => {
-    actions.checkOut(bookingOn(BED1).id, true);
+    checkOutClean(bookingOn(BED1).id);
     expect(roomGenders(getState(), ROOM).size).toBe(0);
   });
 });
@@ -357,6 +374,95 @@ describe("single-gender shared rooms", () => {
     expect(() =>
       book(freeHotelBed(), "2026-12-01", "2026-12-03", "pl-night", female()),
     ).not.toThrow();
+  });
+});
+
+describe("check-out inspection", () => {
+  // Bed 1's resident: monthly, deposit 3,000; invoice 33,000 with 21,000 paid, so 12,000 is due.
+  const resident = () => bookingOn(BED1);
+  const invoiceOf = (bookingId: string) =>
+    getState().invoices.find((i) => i.bookingId === bookingId)!;
+  const balance = (bookingId: string) => invoiceBalance(getState(), invoiceOf(bookingId).id);
+  const damagedBed = (charge: number) => ({
+    bed: { condition: "damaged" as const, note: "مرتبة ممزقة", charge },
+  });
+
+  it("blocks check-out until the room is inspected", () => {
+    expect(actions.checkOut(resident().id, true)).toEqual({
+      ok: false,
+      error: "يلزم فحص الغرفة قبل المغادرة، واعتماد المدير لأي خصومات",
+    });
+  });
+
+  it("approves a clean inspection at once and returns the deposit at check-out", () => {
+    const id = resident().id;
+    expect(balance(id)).toBe(12000);
+    expect(actions.recordInspection(id, inspectionRows(id)).ok).toBe(true);
+    expect(getState().bookings.find((b) => b.id === id)!.inspection!.status).toBe("approved");
+    expect(actions.checkOut(id, true).ok).toBe(true);
+    expect(balance(id)).toBe(9000);
+    expect(invoiceOf(id).lines.at(-1)).toMatchObject({ kind: "deposit", amount: -3000 });
+  });
+
+  it("needs a manager to approve charges, then takes them from the deposit first", () => {
+    const id = resident().id;
+    actions.recordPayment(invoiceOf(id).id, 12000, "cash", "");
+    actions.setRole("housekeeping");
+    expect(actions.recordInspection(id, inspectionRows(id, damagedBed(1000))).ok).toBe(true);
+    expect(actions.reviewInspection(id, true).ok).toBe(false);
+    actions.setRole("manager");
+    expect(actions.checkOut(id, true).ok).toBe(false);
+    expect(actions.reviewInspection(id, true).ok).toBe(true);
+    expect(actions.checkOut(id, true).ok).toBe(true);
+    // Paid in full: 3,000 deposit − 1,000 damages = 2,000 owed back to the guest.
+    expect(balance(id)).toBe(-2000);
+    expect(actions.refundCredit(invoiceOf(id).id, "cash", "").ok).toBe(true);
+    expect(balance(id)).toBe(0);
+    expect(invoiceOverdue(getState(), invoiceOf(id).id)).toBe(0);
+  });
+
+  it("adds charges beyond the deposit to the invoice", () => {
+    const id = resident().id;
+    actions.recordPayment(invoiceOf(id).id, 12000, "cash", "");
+    actions.recordInspection(id, inspectionRows(id, damagedBed(5000)));
+    actions.reviewInspection(id, true);
+    expect(actions.checkOut(id, true).ok).toBe(true);
+    expect(balance(id)).toBe(2000);
+    expect(invoiceOf(id).lines).toContainEqual(
+      expect.objectContaining({ kind: "fee", amount: 5000 }),
+    );
+  });
+
+  it("requires a description for damaged or missing items", () => {
+    const id = resident().id;
+    const res = actions.recordInspection(
+      id,
+      inspectionRows(id, { key: { condition: "missing", charge: 200 } }),
+    );
+    expect(res.ok).toBe(false);
+  });
+
+  it("lets housekeeping inspect but not the front desk", () => {
+    const id = resident().id;
+    actions.setRole("frontdesk");
+    expect(actions.recordInspection(id, inspectionRows(id)).ok).toBe(false);
+    actions.setRole("housekeeping");
+    expect(actions.recordInspection(id, inspectionRows(id)).ok).toBe(true);
+  });
+
+  it("sends rejected charges back for a new inspection", () => {
+    const id = resident().id;
+    actions.recordInspection(id, inspectionRows(id, damagedBed(1000)));
+    expect(actions.reviewInspection(id, false, "").ok).toBe(false);
+    expect(actions.reviewInspection(id, false, "التلف قديم ومسجل عند الوصول").ok).toBe(true);
+    expect(actions.checkOut(id, true).ok).toBe(false);
+    expect(checkOutClean(id).ok).toBe(true);
+  });
+
+  it("checks hotel extras such as the minibar", () => {
+    const keys = (bedId: string) => inspectionChecklist(getState(), bedId).map((c) => c.key);
+    expect(keys(freeHotelBed())).toContain("minibar");
+    expect(keys(BED1)).not.toContain("minibar");
   });
 });
 

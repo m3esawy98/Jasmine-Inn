@@ -94,6 +94,29 @@ export interface Booking {
   events: TimelineEvent[];
   createdAt: string;
   scenario?: boolean;
+  /** Pre-check-out room inspection; check-out requires it to be approved. */
+  inspection?: Inspection;
+}
+export type ItemCondition = "ok" | "damaged" | "missing";
+export interface InspectionItem {
+  key: string;
+  label: string;
+  labelEn: string;
+  condition: ItemCondition;
+  note?: string;
+  /** Amount charged to the guest for this item (0 when in good condition). */
+  charge: number;
+}
+export interface Inspection {
+  items: InspectionItem[];
+  total: number;
+  by: string;
+  at: string;
+  /** Charges need a manager's approval; an inspection with no charges is approved immediately. */
+  status: "pending_approval" | "approved" | "rejected";
+  reviewedBy?: string;
+  reviewedAt?: string;
+  rejectReason?: string;
 }
 export interface Contract {
   id: string;
