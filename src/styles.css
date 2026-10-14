@@ -152,3 +152,9 @@
   .print-area, .print-area * { visibility: visible; }
   .print-area { position: fixed; inset: 0; padding: 2rem; background: white; }
 }
+
+/* Recharts positions SVG text with text-anchor; under the page's RTL direction "start" flips,
+   so right-hand axis numbers ran back over the axis line. Chart drawings stay LTR; Arabic labels still shape correctly. */
+.recharts-surface {
+  direction: ltr;
+}
