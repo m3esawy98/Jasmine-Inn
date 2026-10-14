@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <radialGradient id="leaf" cx="32" cy="22" r="16" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#d9ee9e"/>
+      <stop offset="1" stop-color="#8dc63f"/>
+    </radialGradient>
+    <path id="p" d="M32 27.5C22 22 21.5 10 32 1.5c10.5 8.5 10 20.5 0 26Z" fill="url(#leaf)" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/>
+  </defs>
+  <use href="#p" transform="rotate(20 32 32)"/>
+  <use href="#p" transform="rotate(80 32 32)"/>
+  <use href="#p" transform="rotate(140 32 32)"/>
+  <use href="#p" transform="rotate(200 32 32)"/>
+  <use href="#p" transform="rotate(260 32 32)"/>
+  <use href="#p" transform="rotate(320 32 32)"/>
+</svg>

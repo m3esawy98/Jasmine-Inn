@@ -13,7 +13,7 @@ import { meta } from "@/lib/demo/meta";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/")({
-  head: () => meta("لوحة التحكم التنفيذية", "مؤشرات الإشغال الفعلي والحجوزات والتحصيل لجميع المنشآت في StayFlow Hospitality."),
+  head: () => meta("لوحة التحكم التنفيذية", "مؤشرات الإشغال الفعلي والحجوزات والتحصيل لجميع المنشآت في Jasmine Inn."),
   component: Dashboard,
 });
 

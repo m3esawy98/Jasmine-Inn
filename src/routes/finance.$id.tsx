@@ -87,7 +87,7 @@ function InvoicePage() {
       <Dialog open={!!rp} onOpenChange={(o) => !o && setReceipt(null)}>
         <DialogContent>
           {rp && <div className="print-area space-y-3 text-sm">
-            <div className="flex items-center justify-between"><h2 className="text-lg font-bold">StayFlow Hospitality</h2><Pill tone="warning">{t("إيصال تجريبي", "Demo receipt")}</Pill></div>
+            <div className="flex items-center justify-between"><h2 className="flex items-center gap-2 text-lg font-bold"><img src="/jasmine-mark.svg" alt="" className="size-7" />Jasmine Inn</h2><Pill tone="warning">{t("إيصال تجريبي", "Demo receipt")}</Pill></div>
             <p>{t("إيصال رقم", "Receipt")} <b>{rp.code}</b> · {fmt(rp.at, true)}</p>
             <p>{t("استلمنا من", "Received from")}: <b>{g.name}</b></p>
             <p>{t("المبلغ", "Amount")}: <b>{money(rp.amount)}</b> — {t(...METHOD[rp.method])}</p>

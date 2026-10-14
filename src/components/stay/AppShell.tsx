@@ -66,11 +66,11 @@ function NavList({ onNav }: { onNav?: () => void }) {
 function Brand() {
   return (
     <div className="flex items-center gap-2.5 px-2">
-      <span className="grid size-9 place-items-center rounded-xl bg-sidebar-primary text-sidebar-primary-foreground">
-        <BedDouble className="size-5" />
-      </span>
-      <div className="leading-tight">
-        <p className="font-display text-base font-bold text-sidebar-accent-foreground">StayFlow</p>
+      <img src="/jasmine-mark.svg" alt="" className="size-10 shrink-0" />
+      <div className="leading-tight" dir="ltr">
+        <p className="font-display text-lg font-bold text-sidebar-accent-foreground">
+          Jasmine <span className="font-semibold text-[#8dc63f]">Inn</span>
+        </p>
         <p className="text-[11px] text-sidebar-foreground">Hospitality</p>
       </div>
     </div>
