@@ -34,7 +34,7 @@ function Finance() {
         <Kpi icon={Clock} label={t("المتأخرات", "Overdue")} value={money(k.overdue)} tone="destructive" />
         <Kpi icon={PiggyBank} label={t("تأمينات محتفظ بها", "Deposits held")} value={money(deposits)} tone="info" />
       </div>
-      <Tabs defaultValue="inv">
+      <Tabs dir={s.lang === "ar" ? "rtl" : "ltr"} defaultValue="inv">
         <TabsList><TabsTrigger value="inv">{t("الفواتير", "Invoices")}</TabsTrigger><TabsTrigger value="pay">{t("المدفوعات والإيصالات", "Payments")}</TabsTrigger></TabsList>
         <TabsContent value="inv">
           <Section>
