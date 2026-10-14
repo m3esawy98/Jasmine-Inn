@@ -79,7 +79,7 @@ function Units() {
                         onClick: () => navigate({ to: "/rooms/$id", params: { id: r.id } }),
                         onKeyDown: (e: React.KeyboardEvent) => e.key === "Enter" && navigate({ to: "/rooms/$id", params: { id: r.id } }),
                       })}
-                      className={cn("rounded-xl border p-3", hasResidents && "cursor-pointer transition hover:border-primary/50 hover:shadow-sm", girls && "border-female/40 bg-female-soft", r.code === "A-204" && "ring-2 ring-primary/40")}
+                      className={cn("rounded-xl border p-3", hasResidents && "cursor-pointer transition hover:border-primary/50 hover:shadow-sm", girls && "border-female/40 bg-female-soft")}
                     >
                       <div className="flex items-center justify-between"><b>{r.code}</b>{can(s.role, "unit.edit") && r.hk === "ready" && <button title={t("حجب للصيانة", "Block")} onClick={(e) => { e.stopPropagation(); setBlock(r.id); }}><Lock className="size-3.5 text-muted-foreground hover:text-destructive" /></button>}</div>
                       <div className="my-2 flex flex-wrap gap-1">{[...beds].sort((x, y) => rank(x.id) - rank(y.id)).map((bd) => { const st2 = activeStayOnBed(s, bd.id); const bk = st2 && s.bookings.find((x) => x.id === st2.bookingId); const next = !st2 && upcomingBookingOnBed(s, bd.id); return <span key={bd.id} title={bk ? guestName(s, bk.guestId) : next ? `${bd.label} · ${t("حجز قادم", "Upcoming")} ${next.code} ${shortDate(next.start)}` : bd.label}><BedDouble className={cn("size-5", st2 ? "text-muted-foreground/60" : r.hk !== "ready" ? "text-warning" : next ? "text-info" : "text-success")} /></span>; })}</div>
