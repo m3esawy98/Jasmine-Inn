@@ -7,7 +7,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Kpi, Pill, Section, useAlerts } from "@/components/stay/kit";
 import { startScenario } from "@/components/stay/Tour";
-import { DEMO_TODAY, inScope, invoiceBalance, invoicePaid, kpis, useDemo, bedLabel, guestName, activeStayOnBed } from "@/lib/demo/store";
+import { DEMO_TODAY, PERIOD_START, inScope, invoiceBalance, invoicePaid, kpis, useDemo, bedLabel, guestName, activeStayOnBed } from "@/lib/demo/store";
 import { useDate, useMoney, useNum, useT } from "@/lib/demo/ui";
 import { meta } from "@/lib/demo/meta";
 import { cn } from "@/lib/utils";
@@ -86,7 +86,7 @@ function Dashboard() {
         <Kpi icon={CheckCircle2} label={t("السعة المتاحة", "Available capacity")} value={num(k.available)} hint={t(`${num(k.notReadyBeds)} سرير بانتظار الجاهزية`, `${k.notReadyBeds} awaiting readiness`)} tone="primary" />
         <Kpi icon={Wrench} label={t("وحدات خارج الخدمة", "Out of service")} value={num(k.oos)} tone="destructive" />
         <Kpi icon={Hourglass} label={t("حجوزات تنتظر المراجعة", "Pending review")} value={num(k.pending)} tone="warning" />
-        <Kpi icon={Banknote} label={t("تحصيلات الفترة", "Period collections")} value={money(k.collected)} hint={t("منذ 1 أكتوبر", "Since Oct 1")} tone="success" />
+        <Kpi icon={Banknote} label={t("تحصيلات الفترة", "Period collections")} value={money(k.collected)} hint={`${t("منذ", "Since")} ${fmt(PERIOD_START)}`} tone="success" />
         <Kpi icon={Wallet} label={t("مستحق / متأخر", "Outstanding / overdue")} value={money(k.outstanding)} hint={<span className="text-destructive">{t("متأخر:", "Overdue:")} {money(k.overdue)}</span>} tone="warning" />
         <Kpi icon={LogIn} label={t("وصول / مغادرة اليوم", "Arrivals / departures")} value={`${num(k.arrivals.length)} / ${num(k.departures.length)}`} tone="info" />
       </div>

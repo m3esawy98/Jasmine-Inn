@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from "react";
 import type { Booking, DemoState, PayMethod, Role, Task, TaskStatus } from "./types";
 import { createSeed, DEMO_TODAY, ROLE_USERS, STATE_VERSION, buildSchedule } from "./seed";
-import { computeRent, overlaps } from "./calc";
+import { addMonths, computeRent, freeFrom, overlaps, validRange } from "./calc";
 
 const KEY = "stayflow-demo-state";
 let state: DemoState = createSeed();
@@ -93,11 +93,19 @@ const isScenario = (s: DemoState, bookingId: string) => s.scenario.bookingId ===
 const ACTIVE_BOOKING = ["pending", "confirmed", "checked_in"];
 
 // ---------------- availability ----------------
-export function bedConflict(s: DemoState, bedId: string, start: string, end: string, ignoreId?: string) {
+const planPeriod = (s: DemoState, planId: string) => s.plans.find((p) => p.id === planId)?.period ?? "daily";
+export function bedConflict(s: DemoState, bedId: string, start: string, end: string, planId: string, ignoreId?: string) {
+  const until = freeFrom(planPeriod(s, planId), end);
   return s.bookings.find(
-    (b) => b.id !== ignoreId && b.bedId === bedId && ACTIVE_BOOKING.includes(b.status) && overlaps(start, end, b.start, b.end),
+    (b) =>
+      b.id !== ignoreId &&
+      b.bedId === bedId &&
+      ACTIVE_BOOKING.includes(b.status) &&
+      overlaps(start, until, b.start, freeFrom(planPeriod(s, b.planId), b.end)),
   );
 }
+/** Start of the collections period shown on the dashboard (previous month through today). */
+export const PERIOD_START = addMonths(`${DEMO_TODAY.slice(0, 7)}-01`, -1);
 
 // ---------------- actions ----------------
 export const actions = {
@@ -133,23 +141,27 @@ export const actions = {
   }): Result<Booking> {
     if (!can(state.role, "booking.create")) return deny();
     const s = { ...state };
-    if (!input.start || !input.end || input.end < input.start) return { ok: false, error: "تواريخ الإقامة غير صحيحة" };
+    const plan = s.plans.find((p) => p.id === input.planId);
+    if (!plan) return { ok: false, error: "اختر خطة السعر" };
+    if (!input.start || !input.end || !validRange(plan.period, input.start, input.end))
+      return { ok: false, error: "تواريخ الإقامة غير صحيحة" };
     const bed = s.beds.find((b) => b.id === input.bedId);
     if (!bed) return { ok: false, error: "اختر سريرًا أو وحدة" };
     const room = s.rooms.find((r) => r.id === bed.roomId)!;
     if (room.hk === "maintenance") return { ok: false, error: `الوحدة ${room.code} محجوبة للصيانة ولا يمكن حجزها` };
-    const conflict = bedConflict(s, bed.id, input.start, input.end);
+    const conflict = bedConflict(s, bed.id, input.start, input.end, plan.id);
     if (conflict) {
       return {
         ok: false,
         error: `مرفوض: ${room.code} / ${bed.label} محجوز بالحجز ${conflict.code} من ${conflict.start} إلى ${conflict.end}. اختر سريرًا آخر متاحًا في الغرفة نفسها أو فترة مختلفة.`,
       };
     }
-    const plan = s.plans.find((p) => p.id === input.planId)!;
     let guestId = input.guestId;
     if (!guestId) {
       if (!input.guest?.name.trim()) return { ok: false, error: "أدخل اسم النزيل/الطالب" };
-      const existing = s.guests.find((g) => g.name === input.guest!.name.trim());
+      // Match on national ID, not name: two people can share a name.
+      const nid = input.guest.nationalId.trim();
+      const existing = nid ? s.guests.find((g) => g.nationalId === nid) : undefined;
       if (existing) guestId = existing.id;
       else {
         const gid = `g${next(s, "G")}`;
@@ -237,7 +249,8 @@ export const actions = {
       x.id === id ? { ...x, status: kind, events: [...x.events, { at: nowIso(), text: `${kind === "rejected" ? "رفض" : "إلغاء"} الحجز: ${reason}`, user: user() }] } : x,
     );
     s.contracts = s.contracts.map((c) => (c.bookingId === id ? { ...c, status: "cancelled" } : c));
-    s.invoices = s.invoices.map((i) => (i.bookingId === id && !s.payments.some((p) => p.invoiceId === i.id) ? { ...i, status: "void" } : i));
+    // Void even when paid: the balance becomes a credit owed to the guest (see invoiceBalance), refunded via a correction.
+    s.invoices = s.invoices.map((i) => (i.bookingId === id ? { ...i, status: "void" } : i));
     state = log(s, `${kind === "rejected" ? "رفض" : "إلغاء"} الحجز ${b.code}`, b.code, isScenario(s, id));
     emit();
     return { ok: true };
@@ -275,10 +288,12 @@ export const actions = {
       x.id === id ? { ...x, status: "checked_out", events: [...x.events, { at, text: earlyApproved && DEMO_TODAY < b.end ? "مغادرة مبكرة معتمدة" : "تسجيل المغادرة", user: user() }] } : x,
     );
     s.contracts = s.contracts.map((c) => (c.bookingId === id ? { ...c, status: "ended" } : c));
-    s.rooms = s.rooms.map((r) => (r.id === room.id ? { ...r, hk: "dirty" } : r));
+    // A shared room with other residents stays in service; only the vacated bed is cleaned.
+    const shared = occupiedBeds(s, room.id) > 0;
+    if (!shared) s.rooms = s.rooms.map((r) => (r.id === room.id ? { ...r, hk: "dirty" } : r));
     const t = next(s, "TK");
     s.tasks = [
-      { id: `tk${t}`, code: `TK-${t}`, roomId: room.id, type: "cleaning", title: `تنظيف وفحص بعد مغادرة ${guestName(s, b.guestId)}`, status: "new", priority: "high", notes: [], createdAt: at, source: b.code },
+      { id: `tk${t}`, code: `TK-${t}`, roomId: room.id, type: "cleaning", title: `تنظيف وفحص ${shared ? bed.label + " " : ""}بعد مغادرة ${guestName(s, b.guestId)}`, status: "new", priority: "high", notes: [], createdAt: at, source: b.code },
       ...s.tasks,
     ];
     state = log(s, `تسجيل مغادرة ${guestName(s, b.guestId)} وإنشاء مهمة تنظيف TK-${t} للغرفة ${room.code}`, b.code, isScenario(s, id));
@@ -328,7 +343,8 @@ export const actions = {
     if (order.indexOf(to) !== order.indexOf(t.status) + 1) return { ok: false, error: "يجب تنفيذ الخطوات بالترتيب" };
     if (to === "assigned" && !extra?.assignee) return { ok: false, error: "اختر الموظف المسؤول" };
     const room = s.rooms.find((r) => r.id === t.roomId)!;
-    const hk = to === "in_progress" ? (t.type === "maintenance" ? "maintenance" : "cleaning") : to === "cleaned" || to === "inspected" ? (t.type === "maintenance" ? "maintenance" : "inspection") : to === "approved" ? "ready" : room.hk;
+    const keepHk = t.type === "cleaning" && occupiedBeds(s, room.id) > 0;
+    const hk = keepHk ? room.hk : to === "in_progress" ? (t.type === "maintenance" ? "maintenance" : "cleaning") : to === "cleaned" || to === "inspected" ? (t.type === "maintenance" ? "maintenance" : "inspection") : to === "approved" ? "ready" : room.hk;
     s.rooms = s.rooms.map((r) => (r.id === room.id ? { ...r, hk } : r));
     s.tasks = s.tasks.map((x) => (x.id === taskId ? { ...x, status: to, assignee: extra?.assignee ?? x.assignee, doneAt: to === "approved" ? nowIso() : x.doneAt } : x));
     const labels: Record<TaskStatus, string> = { new: "", assigned: `تعيين ${extra?.assignee}`, in_progress: "بدء التنفيذ", cleaned: "تسجيل اكتمال العمل", inspected: "اجتياز فحص الجاهزية", approved: `اعتماد الغرفة ${room.code} للخدمة - أصبحت متاحة` };
@@ -403,7 +419,11 @@ export function invoicePaid(s: DemoState, invoiceId: string) {
 export function invoiceTotal(s: DemoState, invoiceId: string) {
   return s.invoices.find((i) => i.id === invoiceId)?.lines.reduce((a, l) => a + l.amount, 0) ?? 0;
 }
-export const invoiceBalance = (s: DemoState, id: string) => invoiceTotal(s, id) - invoicePaid(s, id);
+/** Open invoice: amount still due. Void invoice: minus whatever was paid (a credit owed back to the guest). */
+export function invoiceBalance(s: DemoState, id: string) {
+  const voided = s.invoices.find((i) => i.id === id)?.status === "void";
+  return (voided ? 0 : invoiceTotal(s, id)) - invoicePaid(s, id);
+}
 export function invoiceOverdue(s: DemoState, id: string) {
   const inv = s.invoices.find((i) => i.id === id);
   if (!inv || inv.status === "void") return 0;
@@ -457,9 +477,11 @@ export function kpis(s: DemoState) {
   const future = bookings.filter((b) => b.status === "confirmed");
   const pending = bookings.filter((b) => b.status === "pending");
   const available = beds.length - occupied - oosBeds - notReadyBeds;
-  const invoices = s.invoices.filter((i) => bookings.some((b) => b.id === i.bookingId) && i.status === "open");
-  const invIds = new Set(invoices.map((i) => i.id));
-  const collected = s.payments.filter((p) => invIds.has(p.invoiceId) && p.date >= "2026-10-01").reduce((a, p) => a + p.amount, 0);
+  const scoped = s.invoices.filter((i) => bookings.some((b) => b.id === i.bookingId));
+  const invoices = scoped.filter((i) => i.status === "open");
+  // Cash received counts even if the invoice was later voided; refunds net out as reversals.
+  const scopedIds = new Set(scoped.map((i) => i.id));
+  const collected = s.payments.filter((p) => scopedIds.has(p.invoiceId) && p.date >= PERIOD_START).reduce((a, p) => a + p.amount, 0);
   const outstanding = invoices.reduce((a, i) => a + Math.max(0, invoiceBalance(s, i.id)), 0);
   const overdue = invoices.reduce((a, i) => a + invoiceOverdue(s, i.id), 0);
   const arrivals = future.filter((b) => b.start === DEMO_TODAY);

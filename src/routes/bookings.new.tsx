@@ -47,10 +47,10 @@ function NewBooking() {
   const bedStatus = useMemo(
     () =>
       beds.map((b) => {
-        const c = bedConflict(s, b.id, start, end);
+        const c = bedConflict(s, b.id, start, end, planId);
         return { bed: b, conflict: c, occupiedNow: !!activeStayOnBed(s, b.id) };
       }),
-    [beds, s, start, end],
+    [beds, s, start, end, planId],
   );
   const sel = bedStatus.find((x) => x.bed.id === bedId);
   const allowed = can(s.role, "booking.create");

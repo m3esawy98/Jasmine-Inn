@@ -30,7 +30,7 @@ export function monthsBetween(start: string, end: string) {
   return Math.max(1, m);
 }
 export function computeRent(plan: Plan, start: string, end: string) {
-  if (end < start) return 0;
+  if (!validRange(plan.period, start, end)) return 0;
   switch (plan.period) {
     case "daily":
       return Math.max(1, daysBetween(start, end)) * plan.price;
@@ -42,4 +42,15 @@ export function computeRent(plan: Plan, start: string, end: string) {
       return Math.ceil(monthsBetween(start, end) / 4) * plan.price;
   }
 }
-export const overlaps = (a1: string, a2: string, b1: string, b2: string) => a1 <= b2 && b1 <= a2;
+/**
+ * First free day after a booking. Nightly/weekly plans store `end` as the
+ * departure date (bed is free that day); monthly/semester plans store the last
+ * day of the stay, inclusive (Nov 1 - Feb 28).
+ */
+export function freeFrom(period: Plan["period"], end: string) {
+  return period === "daily" || period === "weekly" ? end : addDays(end, 1);
+}
+/** True when the stay covers at least one day/night. */
+export const validRange = (period: Plan["period"], start: string, end: string) => freeFrom(period, end) > start;
+/** Half-open ranges [start, freeFrom): a departure day can be the next arrival day. */
+export const overlaps = (a1: string, a2: string, b1: string, b2: string) => a1 < b2 && b1 < a2;
