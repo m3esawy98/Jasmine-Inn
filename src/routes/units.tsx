@@ -51,7 +51,8 @@ function Units() {
                   const status = roomStatus(s, r.id);
                   const free = beds.filter((bd) => !activeStayOnBed(s, bd.id)).length;
                   // Partially free rooms with a female resident must only take female students.
-                  const girls = status === "partial" && roomGenders(s, r.id).has("female");
+                  const female = roomGenders(s, r.id).has("female");
+                  const girls = status === "partial" && female;
                   const hasResidents = status === "partial" || status === "full";
                   return (
                     <div
@@ -70,6 +71,7 @@ function Units() {
                       <div className="flex flex-wrap items-center gap-1.5">
                         <StatusPill map={UNIT_STATUS} value={status} />
                         {girls && <Pill tone="female">{t("بنات فقط", "Female only")}</Pill>}
+                        {status === "full" && female && <Pill tone="female">{t("بنات", "Female")}</Pill>}
                         {status === "partial" && (
                           <span className={cn("text-xs font-medium", girls ? "text-female" : "text-success")}>
                             {t(`متاح ${num(free)} من ${num(beds.length)}`, `Free ${num(free)} of ${num(beds.length)}`)}
