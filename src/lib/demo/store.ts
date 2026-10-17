@@ -1,10 +1,13 @@
-import { useSyncExternalStore } from "react";
+import { useEffect, useReducer, useSyncExternalStore } from "react";
 import type { Booking, DemoState, Gender, Guest, InspectionItem, ItemCondition, NewGuest, PayMethod, Role, RoomType, Task, TaskStatus } from "./types";
 import { createSeed, DEMO_TODAY, ROLE_USERS, STATE_VERSION, buildSchedule } from "./seed";
 import { addMonths, computeRent, freeFrom, overlaps, validRange } from "./calc";
 
 const KEY = "stayflow-demo-state";
 let state: DemoState = createSeed();
+// What the server rendered from. React hydrates against this, then switches to the persisted state,
+// so a page that hydrates after loadPersisted() ran still matches the server HTML.
+const seedState = state;
 const listeners = new Set<() => void>();
 let loaded = false;
 
@@ -43,7 +46,14 @@ const subscribe = (l: () => void) => {
   return () => listeners.delete(l);
 };
 export function useDemo(): DemoState {
-  return useSyncExternalStore(subscribe, () => state, () => state);
+  const snap = useSyncExternalStore(subscribe, () => state, () => seedState);
+  // A component hydrating after loadPersisted() already ran gets the seed and no later change event,
+  // so catch up once it has mounted.
+  const [, refresh] = useReducer((n: number) => n + 1, 0);
+  useEffect(() => {
+    if (snap !== state) refresh();
+  });
+  return snap;
 }
 export const getState = () => state;
 
@@ -68,7 +78,7 @@ export const PERMS: Record<Role, Perm[]> = {
   exec: ALL,
   manager: ALL,
   reservations: ["booking.create", "booking.review", "guest.edit"],
-  frontdesk: ["booking.create", "stay.checkin", "stay.checkout", "guest.edit"],
+  frontdesk: ["booking.create", "stay.checkin", "stay.checkout", "guest.edit", "payment.record"],
   accountant: ["payment.record", "payment.correct"],
   housekeeping: ["task.update", "task.approve", "stay.inspect"],
   auditor: [],
@@ -144,6 +154,14 @@ export function genderConflict(s: DemoState, bedId: string, start: string, end: 
       s.guests.find((g) => g.id === b.guestId)?.gender !== gender,
   );
 }
+/** Beds a guest of this gender can be booked into for the period: no overlapping booking on the bed,
+ *  no overlapping guest of the other gender in the same shared room, and the room not under maintenance. */
+export function bookableBeds(s: DemoState, roomId: string, start: string, end: string, planId: string, gender: Gender) {
+  if (s.rooms.find((r) => r.id === roomId)?.hk === "maintenance") return [];
+  return s.beds.filter(
+    (b) => b.roomId === roomId && !bedConflict(s, b.id, start, end, planId) && !genderConflict(s, b.id, start, end, planId, gender),
+  );
+}
 /** Start of the collections period shown on the dashboard (previous month through today). */
 export const PERIOD_START = addMonths(`${DEMO_TODAY.slice(0, 7)}-01`, -1);
 
@@ -165,9 +183,6 @@ export const actions = {
   },
   tour(patch: Partial<DemoState["scenario"]>) {
     set((s) => ({ ...s, scenario: { ...s.scenario, ...patch } }));
-  },
-  markConflictTested() {
-    set((s) => log({ ...s, scenario: { ...s.scenario, conflictTested: true } }, "رفض محاولة حجز متداخل على سرير محجوز", "فحص التوافر", true));
   },
 
   createBooking(input: {
@@ -292,7 +307,7 @@ export const actions = {
     const b = s.bookings.find((x) => x.id === id);
     if (!b) return { ok: false, error: "غير موجود" };
     if (kind === "rejected" && b.status !== "pending") return { ok: false, error: "الرفض متاح للحجوزات قيد المراجعة فقط" };
-    if (kind === "cancelled" && !["pending", "confirmed"].includes(b.status)) return { ok: false, error: "لا يمكن إلغاء حجز بعد تسجيل الوصول" };
+    if (kind === "cancelled" && !["pending", "confirmed"].includes(b.status)) return { ok: false, error: "لا يمكن إلغاء حجز بعد تسجيل الدخول" };
     if (!reason.trim()) return { ok: false, error: "سبب الإجراء مطلوب للتوثيق" };
     s.bookings = s.bookings.map((x) =>
       x.id === id ? { ...x, status: kind, events: [...x.events, { at: nowIso(), text: `${kind === "rejected" ? "رفض" : "إلغاء"} الحجز: ${reason}`, user: user() }] } : x,
@@ -309,15 +324,15 @@ export const actions = {
     if (!can(state.role, "stay.checkin")) return deny();
     const s = { ...state };
     const b = s.bookings.find((x) => x.id === id);
-    if (!b || b.status !== "confirmed") return { ok: false, error: "تسجيل الوصول متاح للحجوزات المؤكدة فقط" };
+    if (!b || b.status !== "confirmed") return { ok: false, error: "تسجيل الدخول متاح للحجوزات المؤكدة فقط" };
     const issue = checkInBlockers(s, b);
     if (issue.length) return { ok: false, error: issue.join(" • ") };
     const n = next(s, "ST");
     const at = nowIso();
     s.stays = [...s.stays, { id: `st${n}`, bookingId: id, bedId: b.bedId, checkIn: DEMO_TODAY, checkInAt: at, status: "active" }];
-    s.bookings = s.bookings.map((x) => (x.id === id ? { ...x, status: "checked_in", events: [...x.events, { at, text: "تسجيل الوصول وبدء الإقامة الفعلية", user: user() }] } : x));
+    s.bookings = s.bookings.map((x) => (x.id === id ? { ...x, status: "checked_in", events: [...x.events, { at, text: "تسجيل الدخول وبدء الإقامة الفعلية", user: user() }] } : x));
     s.contracts = s.contracts.map((c) => (c.bookingId === id ? { ...c, status: "active" } : c));
-    state = log(s, `تسجيل وصول ${guestName(s, b.guestId)} - ${bedLabel(s, b.bedId)}`, b.code, isScenario(s, id));
+    state = log(s, `تسجيل دخول ${guestName(s, b.guestId)} - ${bedLabel(s, b.bedId)}`, b.code, isScenario(s, id));
     emit();
     return { ok: true };
   },
@@ -331,11 +346,19 @@ export const actions = {
     if (DEMO_TODAY < b.end && !earlyApproved) return { ok: false, error: "المدة لم تنتهِ بعد؛ يلزم اعتماد مغادرة مبكرة" };
     if (b.inspection?.status !== "approved")
       return { ok: false, error: "يلزم فحص الغرفة قبل المغادرة، واعتماد المدير لأي خصومات" };
-    // Settle the deposit: damages come out of it first, anything beyond it stays on the invoice.
+    // Settle the deposit: damages come out of it first; whatever is still owed is collected before leaving.
     const settlement = checkoutSettlement(s, b);
+    if (settlement.balanceAfter > 0)
+      return { ok: false, error: `يلزم سداد المستحق قبل المغادرة: ${settlement.balanceAfter.toLocaleString("ar-EG")} ج.م.` };
+    if (settlement.balanceAfter < 0)
+      return { ok: false, error: `يلزم رد المستحق للنزيل قبل المغادرة: ${(-settlement.balanceAfter).toLocaleString("ar-EG")} ج.م.` };
     const inv = s.invoices.find((i) => i.bookingId === id && i.status === "open");
     if (inv) {
       const lines = [...inv.lines];
+      if (settlement.early) {
+        lines.push({ label: "إلغاء المدة المتبقية (مغادرة مبكرة)", labelEn: "Remaining stay cancelled (early departure)", amount: -settlement.early.unused, kind: "rent" });
+        lines.push({ label: "غرامة مغادرة مبكرة", labelEn: "Early departure penalty", amount: settlement.early.penalty, kind: "fee" });
+      }
       if (settlement.damages > 0)
         lines.push({ label: "تلفيات ومفقودات (فحص المغادرة)", labelEn: "Damages & missing items (check-out inspection)", amount: settlement.damages, kind: "fee" });
       if (settlement.deposit > 0)
@@ -370,6 +393,20 @@ export const actions = {
   },
 
   /** Housekeeping records the room's condition before the guest leaves. */
+  /** The front desk sends a staff member to inspect the room before check-out. */
+  assignInspection(bookingId: string, assignee: string): Result {
+    if (!can(state.role, "stay.checkout") && !can(state.role, "stay.inspect")) return deny();
+    const s = { ...state };
+    const b = s.bookings.find((x) => x.id === bookingId);
+    if (!b || b.status !== "checked_in") return { ok: false, error: "الفحص متاح للمقيمين حاليًا فقط" };
+    if (!assignee.trim()) return { ok: false, error: "اختر من سيفحص الغرفة" };
+    const at = nowIso();
+    const text = `تكليف ${assignee} بفحص الغرفة قبل المغادرة`;
+    s.bookings = s.bookings.map((x) => (x.id === bookingId ? { ...x, inspectionRequest: { assignee, by: user(), at }, events: [...x.events, { at, text, user: user() }] } : x));
+    state = log(s, `${text} (${b.code})`, b.code, isScenario(s, bookingId));
+    emit();
+    return { ok: true };
+  },
   recordInspection(bookingId: string, input: { key: string; condition: ItemCondition; note?: string; charge?: number }[]): Result {
     if (!can(state.role, "stay.inspect")) return deny();
     const s = { ...state };
@@ -391,12 +428,26 @@ export const actions = {
     }
     const total = items.reduce((a, x) => a + x.charge, 0);
     const at = nowIso();
-    const inspection = { items, total, by: user(), at, status: total > 0 ? ("pending_approval" as const) : ("approved" as const) };
+    const inspection = { items, total, by: b.inspectionRequest?.assignee ?? user(), at, status: total > 0 ? ("pending_approval" as const) : ("reported" as const) };
     const issues = items.filter((x) => x.condition !== "ok").length;
     const text = issues
       ? `فحص الغرفة قبل المغادرة: ${issues} ملاحظات بخصومات ${total.toLocaleString("ar-EG")} ج.م.${total > 0 ? " — بانتظار اعتماد المدير" : ""}`
       : "فحص الغرفة قبل المغادرة: كل المحتويات سليمة";
     s.bookings = s.bookings.map((x) => (x.id === bookingId ? { ...x, inspection, events: [...x.events, { at, text, user: user() }] } : x));
+    state = log(s, `${text} (${b.code})`, b.code, isScenario(s, bookingId));
+    emit();
+    return { ok: true };
+  },
+
+  /** The front desk accepts a clean inspection report, which clears the way to check-out. */
+  confirmInspection(bookingId: string): Result {
+    if (!can(state.role, "stay.checkout")) return deny();
+    const s = { ...state };
+    const b = s.bookings.find((x) => x.id === bookingId);
+    if (b?.inspection?.status !== "reported") return { ok: false, error: "لا يوجد تقرير فحص بانتظار التأكيد" };
+    const at = nowIso();
+    const text = "تأكيد سلامة الغرفة بعد الفحص";
+    s.bookings = s.bookings.map((x) => (x.id === bookingId ? { ...x, inspection: { ...b.inspection!, status: "approved", reviewedBy: user(), reviewedAt: at }, events: [...x.events, { at, text, user: user() }] } : x));
     state = log(s, `${text} (${b.code})`, b.code, isScenario(s, bookingId));
     emit();
     return { ok: true };
@@ -416,6 +467,29 @@ export const actions = {
       : `رفض خصومات الفحص وإعادته لمسؤول النظافة: ${reason.trim()}`;
     s.bookings = s.bookings.map((x) => (x.id === bookingId ? { ...x, inspection, events: [...x.events, { at, text, user: user() }] } : x));
     state = log(s, `${text} (${b.code})`, b.code, isScenario(s, bookingId));
+    emit();
+    return { ok: true };
+  },
+
+  /**
+   * Settles the check-out balance before the guest leaves: collects what they owe (which can exceed today's
+   * balance once damages are added) or pays back what they're owed (deposit, cancelled stay).
+   */
+  settleCheckout(bookingId: string, method: PayMethod, reference: string): Result {
+    if (!can(state.role, "payment.record")) return deny();
+    const s = { ...state };
+    const b = s.bookings.find((x) => x.id === bookingId);
+    if (!b || b.status !== "checked_in") return { ok: false, error: "لا توجد إقامة فعلية نشطة" };
+    if (b.inspection?.status !== "approved") return { ok: false, error: "تُحسب التسوية بعد فحص الغرفة واعتماده" };
+    const { invoiceId, balanceAfter } = checkoutSettlement(s, b);
+    if (!invoiceId || balanceAfter === 0) return { ok: false, error: "لا يوجد رصيد للتسوية" };
+    const inv = s.invoices.find((i) => i.id === invoiceId)!;
+    const n = next(s, "RC");
+    const refund = balanceAfter < 0;
+    const note = refund ? "رد مبلغ مستحق للنزيل (تسوية المغادرة)" : "تسوية المغادرة";
+    s.payments = [...s.payments, { id: `pm${n}`, code: `RC-${n}`, invoiceId, amount: balanceAfter, method, reference, at: nowIso(), date: DEMO_TODAY, user: user(), note }];
+    const amount = Math.abs(balanceAfter).toLocaleString("ar-EG");
+    state = log(s, `${refund ? `رد ${amount} ج.م. للنزيل` : `تحصيل ${amount} ج.م.`} — تسوية المغادرة على ${inv.code} (إيصال RC-${n})`, inv.code, isScenario(s, bookingId));
     emit();
     return { ok: true };
   },
@@ -584,6 +658,23 @@ export function invoiceOverdue(s: DemoState, id: string) {
   // Never more than what's actually still owed (check-out settlement can change the total after the schedule).
   return Math.min(Math.max(0, due - invoicePaid(s, id)), Math.max(0, invoiceBalance(s, id)));
 }
+/** The schedule with payments applied oldest-first, and the next installment still owed (if any). */
+export function installments(s: DemoState, id: string) {
+  const inv = s.invoices.find((i) => i.id === id);
+  if (!inv) return { rows: [], next: undefined };
+  let left = Math.max(0, invoicePaid(s, id));
+  const rows = inv.schedule.map((x) => {
+    const paid = Math.min(left, x.amount);
+    left -= paid;
+    const done = paid >= x.amount;
+    return { ...x, paid, done, late: !done && x.due < DEMO_TODAY };
+  });
+  const open = rows.find((r) => !r.done);
+  const bal = invoiceBalance(s, id);
+  // Charges added after the schedule (check-out settlement) are owed even once every installment is paid.
+  const next = inv.status === "void" || bal <= 0 ? undefined : open ? { due: open.due, amount: Math.min(open.amount - open.paid, bal) } : { due: undefined, amount: bal };
+  return { rows, next };
+}
 export function depositHeld(s: DemoState, id: string) {
   const inv = s.invoices.find((i) => i.id === id);
   const dep = inv?.lines.filter((l) => l.kind === "deposit").reduce((a, l) => a + l.amount, 0) ?? 0;
@@ -616,20 +707,43 @@ export function inspectionChecklist(s: DemoState, bedId: string) {
   return [...BASE_ITEMS, ...((room && EXTRA_ITEMS[room.type]) ?? [])].map(([key, label, labelEn]) => ({ key, label, labelEn }));
 }
 /** Deposit on the invoice, approved damages, and the invoice balance once check-out settles them. */
+/**
+ * Leaving before the contract ends: rent runs through the current period plus one period as a penalty,
+ * and the rest of the contract is dropped from the invoice.
+ */
+export function earlyDeparture(s: DemoState, b: Booking) {
+  if (DEMO_TODAY >= b.end) return undefined;
+  const plan = s.plans.find((p) => p.id === b.planId)!;
+  const used = Math.min(b.rent, computeRent(plan, b.start, DEMO_TODAY));
+  const unused = b.rent - used;
+  if (unused <= 0) return undefined;
+  return { used, unused, penalty: Math.min(plan.price, unused) };
+}
+/** What check-out settles on the invoice; `balanceAfter` > 0 must be paid before the guest leaves. */
 export function checkoutSettlement(s: DemoState, b: Booking) {
   const inv = s.invoices.find((i) => i.bookingId === b.id && i.status === "open");
   const deposit = inv?.lines.filter((l) => l.kind === "deposit").reduce((a, l) => a + l.amount, 0) ?? 0;
   const damages = b.inspection?.total ?? 0;
-  const balanceAfter = (inv ? invoiceBalance(s, inv.id) : 0) - deposit + damages;
-  return { deposit, damages, balanceAfter };
+  const early = earlyDeparture(s, b);
+  const balance = inv ? invoiceBalance(s, inv.id) : 0;
+  const balanceAfter = balance - (early ? early.unused - early.penalty : 0) - deposit + damages;
+  return { invoiceId: inv?.id, balance, deposit, damages, early, balanceAfter };
 }
 
+/** What must be collected before check-in: the first installment of the schedule (it carries the deposit). */
+export function checkInPayment(s: DemoState, b: Booking) {
+  const inv = s.invoices.find((i) => i.bookingId === b.id && i.status !== "void");
+  if (!inv) return undefined;
+  return { invoiceId: inv.id, due: inv.schedule[0]?.amount ?? 0, paid: invoicePaid(s, inv.id), balance: invoiceBalance(s, inv.id) };
+}
 export function checkInBlockers(s: DemoState, b: Booking) {
   const out: string[] = [];
   const bed = s.beds.find((x) => x.id === b.bedId)!;
   const room = s.rooms.find((r) => r.id === bed.roomId)!;
   if (b.status !== "confirmed") out.push("الحجز غير مؤكد");
   if (!b.docs.id || !b.docs.enrollment || !b.docs.photo) out.push("المستندات المطلوبة غير مكتملة");
+  const pay = checkInPayment(s, b);
+  if (pay && pay.paid < pay.due) out.push("لم تُسدَّد الدفعة الأولى والتأمين");
   if (room.hk !== "ready") out.push(`الغرفة ${room.code} غير معتمدة الجاهزية`);
   if (activeStayOnBed(s, b.bedId)) out.push("السرير مشغول بإقامة فعلية");
   return out;
@@ -673,7 +787,9 @@ export function kpis(s: DemoState) {
   const outstanding = invoices.reduce((a, i) => a + Math.max(0, invoiceBalance(s, i.id)), 0);
   const overdue = invoices.reduce((a, i) => a + invoiceOverdue(s, i.id), 0);
   const arrivals = future.filter((b) => b.start === DEMO_TODAY);
-  const departures = bookings.filter((b) => b.status === "checked_in" && b.end <= DEMO_TODAY);
+  const departures = bookings.filter((b) => b.status === "checked_in" && b.end === DEMO_TODAY);
+  // Residents still in-house after their stay ended.
+  const overstays = bookings.filter((b) => b.status === "checked_in" && b.end < DEMO_TODAY);
   return {
     rooms: rooms.length,
     beds: beds.length,
@@ -689,6 +805,7 @@ export function kpis(s: DemoState) {
     overdue,
     arrivals,
     departures,
+    overstays,
   };
 }
 

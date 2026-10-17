@@ -94,6 +94,8 @@ export interface Booking {
   events: TimelineEvent[];
   createdAt: string;
   scenario?: boolean;
+  /** Who was sent to inspect the room before check-out. */
+  inspectionRequest?: { assignee: string; by: string; at: string };
   /** Pre-check-out room inspection; check-out requires it to be approved. */
   inspection?: Inspection;
 }
@@ -112,8 +114,8 @@ export interface Inspection {
   total: number;
   by: string;
   at: string;
-  /** Charges need a manager's approval; an inspection with no charges is approved immediately. */
-  status: "pending_approval" | "approved" | "rejected";
+  /** Charges need a manager's approval; a clean report waits for the front desk to confirm it. */
+  status: "reported" | "pending_approval" | "approved" | "rejected";
   reviewedBy?: string;
   reviewedAt?: string;
   rejectReason?: string;
@@ -223,7 +225,6 @@ export interface DemoState {
   counters: Record<string, number>;
   scenario: {
     bookingId?: string;
-    conflictTested: boolean;
     tourActive: boolean;
     step: number;
   };

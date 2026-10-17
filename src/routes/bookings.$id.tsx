@@ -1,8 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { CheckCircle2, FileText, XCircle, Ban } from "lucide-react";
+import { CheckCircle2, XCircle, Ban } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PageHeader, Section, StatusPill, run } from "@/components/stay/kit";
@@ -32,11 +31,6 @@ function BookingDetail() {
   const inv = s.invoices.find((i) => i.bookingId === b.id);
   const prop = bedProperty(s, b.bedId);
   const review = can(s.role, "booking.review");
-  const docs: [keyof typeof b.docs, string, string][] = [
-    ["id", g.idType === "passport" ? "صورة جواز السفر" : "صورة بطاقة الرقم القومي", g.idType === "passport" ? "Passport copy" : "National ID copy"],
-    ["enrollment", g.kind === "student" ? "إثبات القيد الجامعي" : "بيانات الجهة / الحجز", "Enrollment / company proof"],
-    ["photo", "صورة شخصية", "Photo"],
-  ];
   return (
     <div>
       <PageHeader
@@ -47,14 +41,14 @@ function BookingDetail() {
             <StatusPill map={BOOKING_STATUS} value={b.status} />
             {b.status === "pending" && (
               <>
-                <Button disabled={!review} onClick={() => { if (run(actions.confirmBooking(b.id), t("تم تأكيد الحجز وإنشاء العقد والفاتورة", "Booking confirmed; contract & invoice created")) && getState().scenario.tourActive && b.scenario) { actions.tour({ step: 4 }); navigate({ to: "/stays" }); } }}>
+                <Button disabled={!review} onClick={() => { if (run(actions.confirmBooking(b.id), t("تم تأكيد الحجز وإنشاء العقد والفاتورة", "Booking confirmed; contract & invoice created")) && getState().scenario.tourActive && b.scenario) { actions.tour({ step: 3 }); navigate({ to: "/stays", search: { tab: "arr" } }); } }}>
                   <CheckCircle2 className="size-4" /> {t("تأكيد الحجز", "Confirm booking")}
                 </Button>
                 <Button variant="outline" disabled={!review} onClick={() => setDlg("rejected")}><XCircle className="size-4" />{t("رفض", "Reject")}</Button>
               </>
             )}
-            {["pending", "confirmed"].includes(b.status) && <Button variant="ghost" disabled={!review} onClick={() => setDlg("cancelled")}><Ban className="size-4" />{t("إلغاء", "Cancel")}</Button>}
-            {b.status === "confirmed" && <Button variant="secondary" onClick={() => navigate({ to: "/stays" })}>{t("إلى الوصول المتوقع", "Go to arrivals")}</Button>}
+            {["pending", "confirmed"].includes(b.status) && <Button variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive-soft hover:text-destructive" disabled={!review} onClick={() => setDlg("cancelled")}><Ban className="size-4" />{t("إلغاء", "Cancel")}</Button>}
+            {b.status === "confirmed" && <Button variant="secondary" onClick={() => navigate({ to: "/stays", search: { tab: "arr" } })}>{t("إلى الوصول المتوقع", "Go to arrivals")}</Button>}
           </>
         }
       />
@@ -71,17 +65,6 @@ function BookingDetail() {
               <D k={t("رسوم الإقامة", "Rent")} v={money(b.rent)} />
               <D k={t("التأمين", "Deposit")} v={money(b.deposit)} />
             </dl>
-          </Section>
-          <Section title={t("المستندات المطلوبة", "Required documents")}>
-            <div className="space-y-2">
-              {docs.map(([key, ar, en]) => (
-                <label key={key} className="flex items-center gap-3 rounded-lg border p-3 text-sm">
-                  <Checkbox checked={b.docs[key]} disabled={!review && !can(s.role, "stay.checkin")} onCheckedChange={() => actions.toggleDoc(b.id, key)} />
-                  <FileText className="size-4 text-muted-foreground" /> {t(ar, en)}
-                  <span className="ms-auto text-xs text-muted-foreground">{b.docs[key] ? t("تم الاستلام", "Received") : t("لم يُستلم", "Missing")}</span>
-                </label>
-              ))}
-            </div>
           </Section>
         </div>
         <div className="space-y-4">

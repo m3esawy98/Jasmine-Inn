@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   actions,
   activeStayOnBed,
+  checkoutSettlement,
   getState,
   inspectionChecklist,
   invoiceBalance,
@@ -39,6 +40,9 @@ function book(bedId: string, start: string, end: string, planId = "pl-month", g 
 function confirmAndCheckIn(b: Booking) {
   expect(actions.confirmBooking(b.id).ok).toBe(true);
   for (const k of ["id", "enrollment", "photo"] as const) actions.toggleDoc(b.id, k);
+  // Check-in needs the first installment (with the deposit) collected.
+  const inv = getState().invoices.find((i) => i.bookingId === b.id)!;
+  expect(actions.recordPayment(inv.id, inv.schedule[0].amount, "cash", "").ok).toBe(true);
   const res = actions.checkIn(b.id);
   expect(res).toEqual({ ok: true });
 }
@@ -65,9 +69,13 @@ function inspectionRows(bookingId: string, findings: Record<string, Finding> = {
     ...(findings[c.key] ?? { condition: "ok" as ItemCondition }),
   }));
 }
-/** Records a clean inspection, then checks out (early check-out approved). */
+/** Records a clean inspection, confirms it, settles the balance, then checks out (early check-out approved). */
 function checkOutClean(bookingId: string) {
   expect(actions.recordInspection(bookingId, inspectionRows(bookingId)).ok).toBe(true);
+  expect(actions.confirmInspection(bookingId).ok).toBe(true);
+  const b = getState().bookings.find((x) => x.id === bookingId)!;
+  if (checkoutSettlement(getState(), b).balanceAfter !== 0)
+    expect(actions.settleCheckout(bookingId, "cash", "").ok).toBe(true);
   return actions.checkOut(bookingId, true);
 }
 
@@ -258,6 +266,20 @@ describe("cancelling a paid booking", () => {
   });
 });
 
+describe("check-in", () => {
+  it("waits for the documents and the first installment with the deposit", () => {
+    const b = book(BED2, "2026-11-01", "2026-12-31");
+    actions.confirmBooking(b.id);
+    for (const k of ["id", "enrollment", "photo"] as const) actions.toggleDoc(b.id, k);
+    const inv = getState().invoices.find((i) => i.bookingId === b.id)!;
+    expect(actions.checkIn(b.id)).toEqual({ ok: false, error: "لم تُسدَّد الدفعة الأولى والتأمين" });
+    actions.recordPayment(inv.id, inv.schedule[0].amount - 1, "cash", "");
+    expect(actions.checkIn(b.id).ok).toBe(false);
+    actions.recordPayment(inv.id, 1, "cash", "");
+    expect(actions.checkIn(b.id).ok).toBe(true);
+  });
+});
+
 describe("check-out from a shared room", () => {
   it("keeps the room in service while other residents remain", () => {
     const b2 = book(BED2, "2026-11-01", "2026-11-30");
@@ -378,7 +400,8 @@ describe("single-gender shared rooms", () => {
 });
 
 describe("check-out inspection", () => {
-  // Bed 1's resident: monthly, deposit 3,000; invoice 33,000 with 21,000 paid, so 12,000 is due.
+  // Bed 1's resident: monthly Sep–Jan, deposit 3,000; invoice 33,000 with 21,000 paid, so 12,000 is due.
+  // Leaving early on Nov 1: rent through November (18,000) plus a month's penalty; Dec–Jan (12,000) dropped.
   const resident = () => bookingOn(BED1);
   const invoiceOf = (bookingId: string) =>
     getState().invoices.find((i) => i.bookingId === bookingId)!;
@@ -394,14 +417,26 @@ describe("check-out inspection", () => {
     });
   });
 
-  it("approves a clean inspection at once and returns the deposit at check-out", () => {
+  it("records the assigned inspector's clean report, then checks out once the front desk confirms it", () => {
     const id = resident().id;
+    const inspection = () => getState().bookings.find((b) => b.id === id)!.inspection!;
     expect(balance(id)).toBe(12000);
+    expect(actions.assignInspection(id, "سعاد إبراهيم").ok).toBe(true);
     expect(actions.recordInspection(id, inspectionRows(id)).ok).toBe(true);
-    expect(getState().bookings.find((b) => b.id === id)!.inspection!.status).toBe("approved");
+    expect(inspection()).toMatchObject({ status: "reported", by: "سعاد إبراهيم" });
+    expect(actions.checkOut(id, true).ok).toBe(false);
+    expect(actions.confirmInspection(id).ok).toBe(true);
+    expect(inspection().status).toBe("approved");
+    // 12,000 − 12,000 dropped + 6,000 penalty − 3,000 deposit = 3,000 to pay before leaving.
+    expect(actions.checkOut(id, true)).toEqual({ ok: false, error: "يلزم سداد المستحق قبل المغادرة: ٣٬٠٠٠ ج.م." });
+    expect(actions.settleCheckout(id, "cash", "").ok).toBe(true);
     expect(actions.checkOut(id, true).ok).toBe(true);
-    expect(balance(id)).toBe(9000);
-    expect(invoiceOf(id).lines.at(-1)).toMatchObject({ kind: "deposit", amount: -3000 });
+    expect(balance(id)).toBe(0);
+    expect(invoiceOf(id).lines.slice(-3)).toMatchObject([
+      { kind: "rent", amount: -12000 },
+      { kind: "fee", amount: 6000 },
+      { kind: "deposit", amount: -3000 },
+    ]);
   });
 
   it("needs a manager to approve charges, then takes them from the deposit first", () => {
@@ -413,23 +448,28 @@ describe("check-out inspection", () => {
     actions.setRole("manager");
     expect(actions.checkOut(id, true).ok).toBe(false);
     expect(actions.reviewInspection(id, true).ok).toBe(true);
+    // Paid in full: 6,000 net of the cancelled stay + 3,000 deposit − 1,000 damages = 8,000 owed back,
+    // refunded before the guest leaves.
+    expect(actions.checkOut(id, true)).toEqual({ ok: false, error: "يلزم رد المستحق للنزيل قبل المغادرة: ٨٬٠٠٠ ج.م." });
+    expect(actions.settleCheckout(id, "cash", "").ok).toBe(true);
+    expect(getState().payments.at(-1)).toMatchObject({ amount: -8000 });
     expect(actions.checkOut(id, true).ok).toBe(true);
-    // Paid in full: 3,000 deposit − 1,000 damages = 2,000 owed back to the guest.
-    expect(balance(id)).toBe(-2000);
-    expect(actions.refundCredit(invoiceOf(id).id, "cash", "").ok).toBe(true);
     expect(balance(id)).toBe(0);
     expect(invoiceOverdue(getState(), invoiceOf(id).id)).toBe(0);
   });
 
-  it("adds charges beyond the deposit to the invoice", () => {
+  it("collects damages beyond what the guest has credit for before check-out", () => {
     const id = resident().id;
     actions.recordPayment(invoiceOf(id).id, 12000, "cash", "");
-    actions.recordInspection(id, inspectionRows(id, damagedBed(5000)));
+    actions.recordInspection(id, inspectionRows(id, damagedBed(12000)));
     actions.reviewInspection(id, true);
+    // 0 − 6,000 net of the cancelled stay − 3,000 deposit + 12,000 damages = 3,000, more than today's balance.
+    expect(actions.checkOut(id, true).ok).toBe(false);
+    expect(actions.settleCheckout(id, "cash", "").ok).toBe(true);
     expect(actions.checkOut(id, true).ok).toBe(true);
-    expect(balance(id)).toBe(2000);
+    expect(balance(id)).toBe(0);
     expect(invoiceOf(id).lines).toContainEqual(
-      expect.objectContaining({ kind: "fee", amount: 5000 }),
+      expect.objectContaining({ kind: "fee", amount: 12000 }),
     );
   });
 
@@ -445,9 +485,13 @@ describe("check-out inspection", () => {
   it("lets housekeeping inspect but not the front desk", () => {
     const id = resident().id;
     actions.setRole("frontdesk");
+    expect(actions.assignInspection(id, "سعاد إبراهيم").ok).toBe(true);
     expect(actions.recordInspection(id, inspectionRows(id)).ok).toBe(false);
     actions.setRole("housekeeping");
     expect(actions.recordInspection(id, inspectionRows(id)).ok).toBe(true);
+    expect(actions.confirmInspection(id).ok).toBe(false);
+    actions.setRole("frontdesk");
+    expect(actions.confirmInspection(id).ok).toBe(true);
   });
 
   it("sends rejected charges back for a new inspection", () => {

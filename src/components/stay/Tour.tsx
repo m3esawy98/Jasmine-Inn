@@ -1,12 +1,13 @@
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import { CheckCircle2, ChevronLeft, ChevronRight, Circle, Pause, Sparkles, X } from "lucide-react";
+import { CheckCircle2, ChevronLeft, ChevronRight, Circle, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { actions, getState, useDemo } from "@/lib/demo/store";
 import type { DemoState } from "@/lib/demo/types";
 import { useT } from "@/lib/demo/ui";
 import { cn } from "@/lib/utils";
 
-type Step = { to: string; title: [string, string]; body: [string, string]; done?: (s: DemoState) => boolean };
+/** `gate`: "Next" stays disabled until the step is done. */
+type Step = { to: string; title: [string, string]; body: [string, string]; done?: (s: DemoState) => boolean; gate?: boolean };
 
 const sb = (s: DemoState) => s.bookings.find((b) => b.id === s.scenario.bookingId);
 const sInv = (s: DemoState) => s.invoices.find((i) => i.bookingId === s.scenario.bookingId);
@@ -16,15 +17,14 @@ const sTask = (s: DemoState) => {
 };
 
 export const STEPS: Step[] = [
-  { to: "/", title: ["رحلة الحجز إلى التحصيل", "Booking-to-collection journey"], body: ["سنتابع الطالب عمر حسن من طلب الإقامة في إقامة النيل (الغرفة A-204) حتى اعتماد جاهزية الغرفة. لاحظ مؤشرات لوحة التحكم قبل البدء.", "We'll follow student Omar Hassan from booking request at Nile Residence (room A-204) until the room is approved ready. Note the dashboard KPIs first."] },
-  { to: "/bookings/new", title: ["1. إنشاء الحجز", "1. Create booking"], body: ["البيانات معبأة مسبقًا. اختر سريرًا متاحًا في A-204، راجع نتيجة فحص التوافر والسعر (27,000 ج.م.)، ثم احفظ الحجز بحالة «قيد المراجعة».", "Data is prefilled. Pick a free bed in A-204, review availability and price (EGP 27,000), then save as Under review."], done: (s) => !!sb(s) },
-  { to: "/bookings/new", title: ["اختبار منع الازدواج", "Double-booking test"], body: ["اضغط «اختبار حجز متداخل» لمحاولة حجز السرير نفسه لطالب آخر في فترة متداخلة. سيرفض النظام ويشرح السبب، بينما تبقى الأسرة الأخرى متاحة.", "Click “Test overlapping booking” to book the same bed for someone else. The system rejects it and explains why; other beds stay bookable."], done: (s) => s.scenario.conflictTested },
-  { to: "/bookings/$id", title: ["2. المراجعة والتأكيد", "2. Review & confirm"], body: ["راجع تفاصيل الحجز ثم اضغط «تأكيد الحجز». سينشأ عقد وفاتورة وجدول استحقاقات، وتزيد الحجوزات المستقبلية — دون تغيير الإشغال الفعلي.", "Review then “Confirm booking”. A contract, invoice and schedule are created; future bookings rise — actual occupancy does not."], done: (s) => !!sb(s) && sb(s)!.status !== "pending" },
-  { to: "/stays", title: ["3. تسجيل الوصول", "3. Check-in"], body: ["في «الوصول المتوقع» أكمل قائمة التحقق (المستندات وشرط الدفع). لن يُفعّل زر تسجيل الوصول قبل استيفاء الشروط.", "In Arrivals complete the checklist (documents, payment term). Check-in stays disabled until conditions are met."], done: (s) => ["checked_in", "checked_out"].includes(sb(s)?.status ?? "") },
-  { to: "/finance/$inv", title: ["4. الفاتورة والتحصيل", "4. Invoice & collection"], body: ["اضغط «تسجيل دفعة» وسجّل 10,000 ج.م. سيتحدث الرصيد إلى 17,000 ج.م. وينشأ إيصال قابل للطباعة.", "Click “Record payment” for EGP 10,000. Balance updates to 17,000 and a printable receipt is created."], done: (s) => { const i = sInv(s); return !!i && s.payments.some((p) => p.invoiceId === i.id); } },
-  { to: "/stays", title: ["5. تسجيل المغادرة", "5. Check-out"], body: ["في تبويب «المقيمون حاليًا» اختر عمر حسن، وسجّل فحص الغرفة قبل المغادرة (أي خصومات تحتاج اعتماد المدير). بعدها اعتمد المغادرة المبكرة (للعرض) وأكد: يُسوّى التأمين، وتنشأ مهمة تنظيف.", "In In-house pick Omar and record the pre-check-out room inspection (any charges need a manager's approval). Then approve early check-out (demo) and confirm: the deposit is settled and a cleaning task is created."], done: (s) => sb(s)?.status === "checked_out" },
-  { to: "/housekeeping", title: ["6. التنظيف واعتماد الجاهزية", "6. Cleaning & readiness"], body: ["افتح مهمة A-204: عيّن الموظف، ابدأ التنفيذ، أضف ملاحظة، سجّل الاكتمال، نفّذ الفحص، ثم اعتمد الغرفة. فقط عندها تصبح متاحة.", "Open the A-204 task: assign, start, add a note, complete, inspect, approve. Only then does it become available."], done: (s) => sTask(s)?.status === "approved" },
-  { to: "/", title: ["7. النتيجة النهائية", "7. Outcome"], body: ["راجع ملخص الرحلة والسجل الزمني في لوحة التحكم. كل خطوة غيّرت البيانات المشتركة نفسها.", "Review the journey summary and timeline on the dashboard. Every step changed the same shared data."] },
+  { to: "/", title: ["رحلة الحجز إلى التحصيل", "Booking-to-collection journey"], body: ["سنتابع الطالب عمر حسن من الحجز حتى مغادرته وتجهيز غرفته من جديد (إقامة النيل، الغرفة A-204). اضغط «التالي» للبدء.", "We'll follow student Omar Hassan from booking to check-out and getting his room ready again (Nile Residence, room A-204). Press “Next” to start."] },
+  { to: "/bookings/new", title: ["1. إنشاء الحجز", "1. Create booking"], body: ["البيانات معبأة مسبقًا. اضغط «التالي» في كل خطوة من خطوات الحجز الخمس، ثم «حفظ الحجز». السعر الإجمالي 27,000 ج.م.", "The details are prefilled. Press “Next” through the five booking steps, then “Save booking”. Total price: EGP 27,000."], done: (s) => !!sb(s), gate: true },
+  { to: "/bookings/$id", title: ["2. المراجعة والتأكيد", "2. Review & confirm"], body: ["افتح حجز عمر حسن (المعلَّم «جديد») واضغط «تأكيد الحجز». يُنشأ العقد والفاتورة تلقائيًا.", "Open Omar's booking (marked “New”) and press “Confirm booking”. The contract and invoice are created automatically."], done: (s) => !!sb(s) && sb(s)!.status !== "pending" },
+  { to: "/stays", title: ["3. تسجيل الدخول", "3. Check-in"], body: ["اختر عمر حسن واضغط «تسجيل الدخول». علّم المستندات الثلاثة، وحصّل الدفعة الأولى والتأمين (9,000 ج.م.)، ثم اضغط «تسجيل الدخول».", "Pick Omar and press “Check in”. Tick the three documents, collect the first installment and deposit (EGP 9,000), then press “Check in”."], done: (s) => ["checked_in", "checked_out"].includes(sb(s)?.status ?? "") },
+  { to: "/finance/$inv", title: ["4. الفاتورة والتحصيل", "4. Invoice & collection"], body: ["اضغط «متابعة» لفتح الفاتورة: الدفعة الأولى مسجلة والمتبقي 18,000 ج.م. تُحصَّل باقي الأقساط من هنا بزر «تسجيل دفعة».", "Press “Continue” to open the invoice: the first installment is recorded and EGP 18,000 remains. Later installments are collected here with “Record payment”."], done: (s) => { const i = sInv(s); return !!i && s.payments.some((p) => p.invoiceId === i.id); } },
+  { to: "/stays", title: ["5. تسجيل المغادرة", "5. Check-out"], body: ["عمر سيغادر مبكرًا. اختره من «المقيمون حاليًا» واضغط «بدء إجراءات مغادرة مبكرة»، ثم: اعتمد المغادرة المبكرة، كلّف أحدًا بفحص الغرفة وسجّل تقريره واضغط «الفحص تمام»، ثم حصّل المستحق (3,000 ج.م.) واضغط «تأكيد المغادرة».", "Omar is leaving early. Pick him under In-house and press “Start early check-out”, then: approve the early departure, assign someone to inspect the room, record their report and press “Inspection OK”, then collect what's owed (EGP 3,000) and press “Confirm check-out”."], done: (s) => sb(s)?.status === "checked_out" },
+  { to: "/housekeeping", title: ["6. التنظيف واعتماد الجاهزية", "6. Cleaning & readiness"], body: ["افتح مهمة تنظيف A-204 ونفّذ خطواتها بالترتيب حتى «اعتماد الغرفة للخدمة». بعدها فقط يصبح السرير متاحًا للحجز.", "Open the A-204 cleaning task and run its steps in order up to “Approve for service”. Only then is the bed bookable again."], done: (s) => sTask(s)?.status === "approved" },
+  { to: "/", title: ["7. النتيجة النهائية", "7. Outcome"], body: ["اضغط «متابعة» لرؤية ملخص الرحلة في لوحة التحكم: كل خطوة نفذتها ظهرت في الأرقام والسجل.", "Press “Continue” to see the journey summary on the dashboard: every step you took shows up in the numbers and the log."] },
 ];
 
 function resolve(to: string, s: DemoState) {
@@ -53,46 +53,45 @@ export function TourPanel() {
     actions.tour({ step: k });
     navigate({ to: resolve(STEPS[k].to, getState()) as "/" });
   };
+  // Docked under the sticky header: it pushes the page down instead of covering it. On phones it is too
+  // tall to pin, so it scrolls away with the page.
   return (
-    <div className="fixed bottom-4 end-4 z-50 w-[min(380px,calc(100vw-2rem))] rounded-2xl border bg-card p-4 shadow-[var(--shadow-float)]">
-      <div className="mb-2 flex items-center justify-between">
-        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary">
-          <Sparkles className="size-3.5" /> {t("دليل السيناريو", "Scenario guide")} · {i + 1}/{STEPS.length}
-        </span>
-        <div className="flex gap-1">
-          <Button size="icon" variant="ghost" className="size-7" title={t("إيقاف مؤقت", "Pause")} onClick={() => actions.tour({ tourActive: false })}>
-            <Pause className="size-3.5" />
-          </Button>
-          <Button size="icon" variant="ghost" className="size-7" onClick={() => actions.tour({ tourActive: false })}>
-            <X className="size-3.5" />
-          </Button>
+    <div className="z-10 border-b md:sticky md:top-16 border-primary/20 bg-primary-soft px-4 py-2.5 md:px-6">
+      <div className="mx-auto max-w-[1400px]">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary">
+            <Sparkles className="size-3.5" /> {t("دليل السيناريو", "Scenario guide")} · {(i + 1).toLocaleString(s.lang === "ar" ? "ar-EG" : "en")}/{STEPS.length.toLocaleString(s.lang === "ar" ? "ar-EG" : "en")}
+          </span>
+          <h3 className="flex-1 text-sm font-semibold">{t(...step.title)}</h3>
+          {step.done && (
+            <span className={cn("inline-flex items-center gap-1.5 text-xs font-medium", done ? "text-success" : "text-muted-foreground")}>
+              {done ? <CheckCircle2 className="size-3.5" /> : <Circle className="size-3.5" />}
+              {done ? t("تم تنفيذ الخطوة", "Step completed") : step.gate ? t("أكمل الخطوات الخمس واحفظ الحجز للمتابعة", "Finish the five steps and save the booking to continue") : t("بانتظار تنفيذ الخطوة", "Waiting for this step")}
+            </span>
+          )}
+          <div className="flex items-center gap-1.5">
+            <Button size="sm" variant="outline" className="h-8 bg-card" disabled={i === 0} onClick={() => go(i - 1)}>
+              <ChevronRight className="size-4 ltr:rotate-180" /> {t("السابق", "Previous")}
+            </Button>
+            {path !== target && (
+              <Button size="sm" variant="outline" className="h-8 bg-card" onClick={() => navigate({ to: target as "/" })}>
+                {t("متابعة", "Continue")}
+              </Button>
+            )}
+            <Button size="sm" className="h-8" disabled={i === STEPS.length - 1 || (step.gate && !done)} onClick={() => go(i + 1)}>
+              {t("التالي", "Next")} <ChevronLeft className="size-4 ltr:rotate-180" />
+            </Button>
+            <Button size="icon" variant="ghost" className="size-8" title={t("إغلاق الدليل", "Close guide")} onClick={() => actions.tour({ tourActive: false })}>
+              <X className="size-4" />
+            </Button>
+          </div>
         </div>
-      </div>
-      <div className="mb-3 flex gap-1">
-        {STEPS.map((st, k) => (
-          <span key={k} className={cn("h-1.5 flex-1 rounded-full", k < i || st.done?.(s) ? "bg-primary" : k === i ? "bg-primary/40" : "bg-muted")} />
-        ))}
-      </div>
-      <h3 className="font-semibold">{t(...step.title)}</h3>
-      <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{t(...step.body)}</p>
-      {step.done && (
-        <p className={cn("mt-2 inline-flex items-center gap-1.5 text-xs font-medium", done ? "text-success" : "text-muted-foreground")}>
-          {done ? <CheckCircle2 className="size-3.5" /> : <Circle className="size-3.5" />}
-          {done ? t("تم تنفيذ الخطوة", "Step completed") : t("بانتظار تنفيذ الخطوة", "Waiting for this step")}
-        </p>
-      )}
-      <div className="mt-3 flex items-center justify-between gap-2">
-        <Button size="sm" variant="outline" disabled={i === 0} onClick={() => go(i - 1)}>
-          <ChevronRight className="size-4 ltr:rotate-180" /> {t("السابق", "Previous")}
-        </Button>
-        {path !== target && (
-          <Button size="sm" variant="secondary" onClick={() => navigate({ to: target as "/" })}>
-            {t("متابعة", "Continue")}
-          </Button>
-        )}
-        <Button size="sm" disabled={i === STEPS.length - 1} onClick={() => go(i + 1)}>
-          {t("التالي", "Next")} <ChevronLeft className="size-4 ltr:rotate-180" />
-        </Button>
+        <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{t(...step.body)}</p>
+        <div className="mt-2 flex gap-1">
+          {STEPS.map((st, k) => (
+            <span key={k} className={cn("h-1 flex-1 rounded-full", k < i || st.done?.(s) ? "bg-primary" : k === i ? "bg-primary/40" : "bg-primary/10")} />
+          ))}
+        </div>
       </div>
     </div>
   );

@@ -43,7 +43,7 @@ function Properties() {
               <div className="mt-1 flex flex-wrap gap-2">{s.buildings.filter((b) => b.propertyId === p.id).map((b) => <Pill key={b.id}>{t("مبنى", "Bldg")} {b.name} · {num(b.floors)} {t("أدوار", "floors")}</Pill>)}</div>
               <p className="mt-3 text-xs font-medium text-muted-foreground">{t("المرافق", "Amenities")}</p>
               <p className="mt-1 text-sm">{p.amenities.join(" · ")}</p>
-              <Link to="/units" search={{ q: undefined }} className="mt-4 inline-block text-sm font-medium text-primary">{t("عرض توزيع الغرف ←", "View room map →")}</Link>
+              <Link to="/units" search={{ q: undefined, pid: p.id }} className="mt-4 inline-block text-sm font-medium text-primary">{t("عرض توزيع الغرف ←", "View room map →")}</Link>
             </Section>
           );
         })}

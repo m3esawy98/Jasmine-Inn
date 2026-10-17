@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { Brush, CheckCircle2, ClipboardCheck, Play, ShieldCheck, UserPlus, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -50,6 +50,7 @@ function TaskPanel({ task }: { task: Task }) {
   const s = useDemo();
   const t = useT();
   const fmt = useDate();
+  const navigate = useNavigate();
   const [who, setWho] = useState(s.staff[0]);
   const [note, setNote] = useState("");
   const room = s.rooms.find((r) => r.id === task.roomId)!;
@@ -72,7 +73,11 @@ function TaskPanel({ task }: { task: Task }) {
           <span className="flex-1 text-sm font-medium">{i + 1}. {st.label}{st.to === "assigned" && task.assignee && ` — ${task.assignee}`}</span>
           {curStep && st.to === "assigned" && <Select value={who} onValueChange={setWho}><SelectTrigger className="h-8 w-44"><SelectValue /></SelectTrigger><SelectContent>{s.staff.map((x) => <SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select>}
           {curStep && <Button size="sm" disabled={!st.perm} onClick={() => {
-            if (run(actions.taskStep(task.id, st.to, { assignee: who }), st.to === "approved" ? t(`أصبحت ${room.code} متاحة`, `${room.code} is now available`) : t("تم التحديث", "Updated")) && st.to === "approved" && getState().scenario.tourActive) actions.tour({ step: 8 });
+            if (run(actions.taskStep(task.id, st.to, { assignee: who }), st.to === "approved" ? t(`أصبحت ${room.code} متاحة`, `${room.code} is now available`) : t("تم التحديث", "Updated")) && st.to === "approved") {
+              if (getState().scenario.tourActive) actions.tour({ step: 7 });
+              // Show the room back in service on the room map.
+              navigate({ to: "/units", search: { q: room.code, pid: room.propertyId } });
+            }
           }}>{t("تنفيذ", "Do")}</Button>}
         </li>); })}</ol>
       <div className="mt-5">

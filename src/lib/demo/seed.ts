@@ -346,7 +346,7 @@ export function createSeed(): DemoState {
     activities,
     staff: ["أم كلثوم محمود", "سعاد إبراهيم", "رجب عبد العزيز", "م. سامي الفني"],
     counters: c,
-    scenario: { conflictTested: false, tourActive: false, step: 0 },
+    scenario: { tourActive: false, step: 0 },
   };
 }
 

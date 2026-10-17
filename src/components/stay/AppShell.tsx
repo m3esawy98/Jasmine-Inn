@@ -26,9 +26,9 @@ const NAV = [
   { to: "/", icon: LayoutDashboard, ar: "لوحة التحكم", en: "Dashboard" },
   { to: "/properties", icon: Building2, ar: "المنشآت والمباني", en: "Properties" },
   { to: "/units", icon: BedDouble, ar: "الغرف والشقق والأسرة", en: "Rooms & beds" },
-  { to: "/guests", icon: Users, ar: "العملاء والطلاب", en: "Guests & students" },
   { to: "/bookings", icon: CalendarDays, ar: "الحجوزات", en: "Bookings" },
   { to: "/stays", icon: KeyRound, ar: "الإقامة والتسكين", en: "Stays & check-in" },
+  { to: "/guests", icon: Users, ar: "العملاء والطلاب", en: "Guests & students" },
   { to: "/contracts", icon: FileSignature, ar: "العقود والأسعار", en: "Contracts & rates" },
   { to: "/finance", icon: Wallet, ar: "المالية والتحصيل", en: "Finance" },
   { to: "/housekeeping", icon: Wrench, ar: "النظافة والصيانة", en: "Housekeeping" },
@@ -184,7 +184,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onClick={() => navigate({ to: "/bookings/new" })}>{t("حجز جديد", "New booking")}</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => navigate({ to: "/stays" })}>{t("تسجيل وصول / مغادرة", "Check-in / out")}</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate({ to: "/stays", search: { tab: undefined } })}>{t("تسجيل دخول / مغادرة", "Check-in / out")}</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => navigate({ to: "/finance" })}>{t("تسجيل دفعة", "Record payment")}</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => navigate({ to: "/housekeeping" })}>{t("مهام النظافة", "Housekeeping tasks")}</DropdownMenuItem>
               </DropdownMenuContent>
@@ -199,7 +199,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <PopoverContent align="end" className="w-80 p-2">
                 <p className="px-2 pb-2 text-sm font-semibold">{t("التنبيهات", "Alerts")}</p>
                 {alerts.map((a) => (
-                  <Link key={a.text} to={a.to as "/"} className="flex items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-muted">
+                  <Link key={a.text} to={a.to as "/"} search={a.search as never} className="flex items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-muted">
                     <Pill tone={a.tone}>•</Pill> {a.text}
                   </Link>
                 ))}
@@ -233,9 +233,9 @@ export function AppShell({ children }: { children: ReactNode }) {
           <span className="font-medium">{t("بيانات تجريبية · الصلاحيات محاكاة في الواجهة فقط وليست نظام تفويض آمن · لا توجد مدفوعات حقيقية", "Demo data · Roles are UI simulation only · No real payments")}</span>
           <ResetButton disabled={!can(s.role, "demo.reset")} />
         </div>
-        <main className="mx-auto max-w-[1400px] p-4 pb-40 md:p-6 md:pb-40">{children}</main>
+        <TourPanel />
+        <main className="mx-auto max-w-[1400px] p-4 md:p-6">{children}</main>
       </div>
-      <TourPanel />
     </div>
     </DirectionProvider>
   );

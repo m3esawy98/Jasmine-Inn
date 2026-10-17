@@ -57,7 +57,7 @@ function RoomDetail() {
                 <Pill tone="info">{t("طلاب", "Male")}</Pill>
               ))}
             <Button variant="outline" asChild>
-              <Link to="/units" search={{ q: undefined }}>
+              <Link to="/units" search={{ q: undefined, pid: room.propertyId }}>
                 <ArrowRight className="size-4 ltr:rotate-180" />
                 {t("الغرف والأسرة", "Rooms & beds")}
               </Link>

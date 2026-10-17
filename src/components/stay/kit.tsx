@@ -88,10 +88,11 @@ export function computeAlerts(s: DemoState, t: (a: string, e: string) => string)
   const k = kpis(s);
   const overdue = s.invoices.filter((i) => i.status === "open" && invoiceOverdue(s, i.id) > 0).length;
   const notReady = s.rooms.filter((r) => r.hk !== "ready" && r.hk !== "maintenance").length;
-  const out: { tone: string; text: string; to: string }[] = [];
-  if (k.pending) out.push({ tone: "warning", text: t(`${k.pending} حجوزات تنتظر المراجعة`, `${k.pending} bookings awaiting review`), to: "/bookings" });
-  if (k.arrivals.length) out.push({ tone: "info", text: t(`${k.arrivals.length} وصول متوقع اليوم`, `${k.arrivals.length} arrivals expected today`), to: "/stays" });
-  if (k.departures.length) out.push({ tone: "info", text: t(`${k.departures.length} مغادرة مستحقة اليوم`, `${k.departures.length} departures due`), to: "/stays" });
+  const out: { tone: string; text: string; to: string; search?: Record<string, string> }[] = [];
+  if (k.overstays.length) out.push({ tone: "destructive", text: t(`${k.overstays.length} مقيمين تجاوزوا موعد المغادرة`, `${k.overstays.length} residents past their departure date`), to: "/stays", search: { tab: "late" } });
+  if (k.pending) out.push({ tone: "warning", text: t(`${k.pending} حجوزات تنتظر المراجعة`, `${k.pending} bookings awaiting review`), to: "/bookings", search: { status: "pending" } });
+  if (k.arrivals.length) out.push({ tone: "info", text: t(`${k.arrivals.length} وصول متوقع اليوم`, `${k.arrivals.length} arrivals expected today`), to: "/stays", search: { tab: "arr" } });
+  if (k.departures.length) out.push({ tone: "info", text: t(`${k.departures.length} مغادرة مستحقة اليوم`, `${k.departures.length} departures due today`), to: "/stays", search: { tab: "out" } });
   if (overdue) out.push({ tone: "destructive", text: t(`${overdue} فواتير بها مبالغ متأخرة`, `${overdue} invoices overdue`), to: "/finance" });
   if (notReady) out.push({ tone: "warning", text: t(`${notReady} وحدات بانتظار التنظيف أو الفحص`, `${notReady} units not ready`), to: "/housekeeping" });
   if (k.oos) out.push({ tone: "destructive", text: t(`${k.oos} وحدات خارج الخدمة للصيانة`, `${k.oos} units out of service`), to: "/housekeeping" });

@@ -14,12 +14,12 @@ function Settings() {
   const s = useDemo();
   const t = useT();
   const rules: [string, string][] = [
-    ["الحجز المؤكد لا يُحتسب إشغالًا قبل تسجيل الوصول", "Confirmed booking isn't occupancy until check-in"],
+    ["الحجز المؤكد لا يُحتسب إشغالًا قبل تسجيل الدخول", "Confirmed booking isn't occupancy until check-in"],
     ["منع حجز السرير نفسه في فترات متداخلة", "No overlapping bookings per bed"],
     ["الغرفة لا تصبح متاحة بعد المغادرة إلا باعتماد الجاهزية", "Room available only after readiness approval"],
     ["لا حذف لعمليات التحصيل؛ التصحيح بقيد عكسي موثق", "No payment deletion; documented reversals"],
     ["التأمين يُعرض منفصلًا عن إيرادات الإقامة", "Deposits separate from revenue"],
-    ["تسجيل الوصول يتطلب: تأكيد الحجز، المستندات، جاهزية السرير، مراجعة شرط الدفع", "Check-in requires confirmation, docs, readiness, payment term"],
+    ["تسجيل الدخول يتطلب: تأكيد الحجز، المستندات، جاهزية السرير، مراجعة شرط الدفع", "Check-in requires confirmation, docs, readiness, payment term"],
   ];
   return (
     <div className="space-y-4">

@@ -70,9 +70,12 @@ function Dashboard() {
               {t("من طلب الإقامة حتى جاهزية الغرفة — شاهد أثر كل خطوة على الإشغال والتحصيل والتشغيل في الوقت الفعلي.", "From stay request to room readiness — watch every step update occupancy, collection and operations live.")}
             </p>
           </div>
-          <Button size="lg" variant="secondary" className="h-12 px-6 text-base font-bold" onClick={() => startScenario(navigate)}>
-            <Play className="size-5" /> {sc ? t("متابعة السيناريو", "Resume scenario") : t("ابدأ السيناريو", "Start scenario")}
-          </Button>
+          {/* While the guide is open it drives the scenario, so the start button steps aside. */}
+          {!s.scenario.tourActive && (
+            <Button size="lg" variant="secondary" className="h-12 px-6 text-base font-bold" onClick={() => startScenario(navigate)}>
+              <Play className="size-5" /> {sc ? t("متابعة السيناريو", "Resume scenario") : t("ابدأ السيناريو", "Start scenario")}
+            </Button>
+          )}
         </div>
       </section>
 
@@ -80,15 +83,17 @@ function Dashboard() {
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
         <Kpi icon={BedDouble} label={t("إجمالي الغرف / الأسرة", "Rooms / beds")} value={`${num(k.rooms)} / ${num(k.beds)}`} />
-        <Kpi icon={DoorOpen} label={t("أسرة مشغولة فعليًا", "Occupied beds")} value={num(k.occupied)} hint={t("بعد تسجيل الوصول فقط", "Only after check-in")} tone="success" />
+        <Kpi icon={DoorOpen} label={t("أسرة مشغولة فعليًا", "Occupied beds")} value={num(k.occupied)} hint={t("بعد تسجيل الدخول فقط", "Only after check-in")} tone="success" />
         <Kpi icon={ArrowLeftRight} label={t("نسبة الإشغال الفعلي", "Actual occupancy")} value={`${num(Math.round(k.occupancy * 1000) / 10)}٪`} tone="success" />
         <Kpi icon={CalendarClock} label={t("حجوزات مستقبلية مؤكدة", "Future confirmed")} value={num(k.future)} tone="info" />
         <Kpi icon={CheckCircle2} label={t("السعة المتاحة", "Available capacity")} value={num(k.available)} hint={t(`${num(k.notReadyBeds)} سرير بانتظار الجاهزية`, `${k.notReadyBeds} awaiting readiness`)} tone="primary" />
         <Kpi icon={Wrench} label={t("وحدات خارج الخدمة", "Out of service")} value={num(k.oos)} tone="destructive" />
-        <Kpi icon={Hourglass} label={t("حجوزات تنتظر المراجعة", "Pending review")} value={num(k.pending)} tone="warning" />
+        <Link to="/bookings" search={{ status: "pending", created: undefined }} className="block rounded-xl transition hover:ring-2 hover:ring-warning/40 [&>div]:h-full" title={t("عرض الحجوزات قيد المراجعة", "Show bookings pending review")}>
+          <Kpi icon={Hourglass} label={t("حجوزات تنتظر المراجعة", "Pending review")} value={num(k.pending)} tone="warning" />
+        </Link>
         <Kpi icon={Banknote} label={t("تحصيلات الفترة", "Period collections")} value={money(k.collected)} hint={`${t("منذ", "Since")} ${fmt(PERIOD_START)}`} tone="success" />
         <Kpi icon={Wallet} label={t("مستحق / متأخر", "Outstanding / overdue")} value={money(k.outstanding)} hint={<span className="text-destructive">{t("متأخر:", "Overdue:")} {money(k.overdue)}</span>} tone="warning" />
-        <Kpi icon={LogIn} label={t("وصول / مغادرة اليوم", "Arrivals / departures")} value={`${num(k.arrivals.length)} / ${num(k.departures.length)}`} tone="info" />
+        <Kpi icon={LogIn} label={t("وصول / مغادرة اليوم", "Arrivals / departures")} value={`${num(k.arrivals.length)} / ${num(k.departures.length)}`} hint={k.overstays.length > 0 && <Link to="/stays" search={{ tab: "late" }} className="text-destructive hover:underline">{t(`تجاوز موعد المغادرة: ${num(k.overstays.length)}`, `Past departure date: ${k.overstays.length}`)}</Link>} tone="info" />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
@@ -115,7 +120,7 @@ function Dashboard() {
           <div className="space-y-2">
             {alerts.length === 0 && <p className="text-sm text-muted-foreground">{t("لا توجد تنبيهات", "No alerts")}</p>}
             {alerts.map((a) => (
-              <Link key={a.text} to={a.to as "/"} className="flex items-center gap-3 rounded-lg border p-3 text-sm hover:bg-muted/50">
+              <Link key={a.text} to={a.to as "/"} search={a.search as never} className="flex items-center gap-3 rounded-lg border p-3 text-sm hover:bg-muted/50">
                 <AlertTriangle className={cn("size-4 shrink-0", a.tone === "destructive" ? "text-destructive" : a.tone === "info" ? "text-info" : "text-warning")} />
                 {a.text}
               </Link>

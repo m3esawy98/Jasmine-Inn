@@ -1,17 +1,17 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { AlertCircle, BedDouble, CheckCircle2, FlaskConical, ShieldAlert } from "lucide-react";
+import { AlertCircle, BedDouble, Check, CheckCircle2, ChevronLeft, ChevronRight, Info, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PageHeader, Pill, Section } from "@/components/stay/kit";
 import { GuestIdFields } from "@/components/stay/GuestIdFields";
-import { actions, activeStayOnBed, bedConflict, can, getState, useDemo } from "@/lib/demo/store";
-import { computeRent } from "@/lib/demo/calc";
+import { actions, activeStayOnBed, bedConflict, bookableBeds, can, getState, useDemo } from "@/lib/demo/store";
+import { computeRent, validRange } from "@/lib/demo/calc";
 import { useMoney, useT } from "@/lib/demo/ui";
 import { meta } from "@/lib/demo/meta";
-import type { Gender, IdType } from "@/lib/demo/types";
+import type { Gender, IdType, RoomType } from "@/lib/demo/types";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -20,16 +20,39 @@ export const Route = createFileRoute("/bookings/new")({
   component: NewBooking,
 });
 
+const STEPS: [string, string][] = [
+  ["المدة ونوع السكن", "Period & housing"],
+  ["اختيار الغرفة", "Room"],
+  ["اختيار السرير", "Bed"],
+  ["بيانات الطالب", "Guest details"],
+  ["المراجعة والحفظ", "Review & save"],
+];
+
+const ROOM_TYPE: Record<RoomType, [string, string]> = {
+  single: ["فردية", "Single"],
+  double: ["مزدوجة", "Double"],
+  quad: ["رباعية", "Quad"],
+  hotel: ["فندقية", "Hotel"],
+  apartment: ["شقة", "Apartment"],
+};
+
 function NewBooking() {
+  const s = useDemo();
+  const scenarioMode = !s.scenario.bookingId;
+  // The form's starting values depend on the scenario, which is only known once the saved demo data loads.
+  return <BookingWizard key={String(scenarioMode)} scenarioMode={scenarioMode} />;
+}
+
+function BookingWizard({ scenarioMode }: { scenarioMode: boolean }) {
   const s = useDemo();
   const t = useT();
   const money = useMoney();
   const navigate = useNavigate();
-  const scenarioMode = !s.scenario.bookingId;
+  const num = (n: number) => n.toLocaleString(s.lang === "ar" ? "ar-EG" : "en");
+  const [step, setStep] = useState(0);
   const [propertyId, setProperty] = useState("p1");
-  const [buildingId, setBuilding] = useState("b1");
-  const [roomId, setRoom] = useState("r-A-204");
-  const [bedId, setBed] = useState("r-A-204-2");
+  const [roomId, setRoom] = useState<string | null>(scenarioMode ? "r-A-204" : null);
+  const [bedId, setBed] = useState(scenarioMode ? "r-A-204-2" : "");
   const [planId, setPlan] = useState("pl-month");
   const [start, setStart] = useState("2026-11-01");
   const [end, setEnd] = useState("2027-02-28");
@@ -40,75 +63,77 @@ function NewBooking() {
   );
   const [error, setError] = useState<string | null>(null);
 
-  const buildings = s.buildings.filter((b) => b.propertyId === propertyId);
-  const rooms = s.rooms.filter((r) => r.buildingId === buildingId);
-  const beds = s.beds.filter((b) => b.roomId === roomId);
   const room = s.rooms.find((r) => r.id === roomId);
   const plan = s.plans.find((p) => p.id === planId)!;
   const rent = computeRent(plan, start, end);
+  const datesOk = !!start && !!end && validRange(plan.period, start, end);
   // The booking just saved from this form, while its inputs are unchanged. The form stays open in the
   // scenario, so without this the availability check would report the new booking as a conflict with itself.
   const [saved, setSaved] = useState<{ id: string; code: string; key: string } | null>(null);
   const key = `${bedId}|${start}|${end}|${planId}`;
   const mine = saved?.key === key ? saved : null;
-  const bedStatus = useMemo(
+
+  const roomOptions = useMemo(
     () =>
-      beds.map((b) => {
+      g.gender && datesOk
+        ? s.rooms
+            .filter((r) => r.propertyId === propertyId)
+            .map((r) => ({ room: r, free: bookableBeds(s, r.id, start, end, planId, g.gender as Gender), total: s.beds.filter((b) => b.roomId === r.id).length }))
+            .filter((x) => x.free.length > 0 || x.room.id === roomId)
+        : [],
+    [s, propertyId, start, end, planId, g.gender, datesOk, roomId],
+  );
+  const bedStatus = useMemo(() => {
+    if (!roomId || !g.gender) return [];
+    const open = new Set(bookableBeds(s, roomId, start, end, planId, g.gender).map((b) => b.id));
+    return s.beds
+      .filter((b) => b.roomId === roomId)
+      .map((b) => {
         const c = bedConflict(s, b.id, start, end, planId);
         const own = !!mine && c?.id === mine.id;
-        return { bed: b, conflict: own ? undefined : c, own, occupiedNow: !!activeStayOnBed(s, b.id) };
-      }),
-    [beds, s, start, end, planId, mine],
-  );
+        return { bed: b, conflict: own ? undefined : c, own, blocked: !own && !open.has(b.id), occupiedNow: !!activeStayOnBed(s, b.id) };
+      });
+  }, [s, roomId, start, end, planId, g.gender, mine]);
   const sel = bedStatus.find((x) => x.bed.id === bedId);
-  // Fill shared rooms in bed order: preselect the lowest-numbered bed that's free for the chosen period.
-  const firstFreeBed = (rid: string) => {
-    const roomBeds = s.beds.filter((x) => x.roomId === rid);
-    return (roomBeds.find((x) => !bedConflict(s, x.id, start, end, planId)) ?? roomBeds[0]).id;
-  };
   const allowed = can(s.role, "booking.create");
+
+  // Changing an earlier step invalidates the choices made after it.
+  const resetRoom = () => { setRoom(null); setBed(""); };
+  const pickRoom = (rid: string) => {
+    setRoom(rid);
+    setBed(g.gender ? (bookableBeds(s, rid, start, end, planId, g.gender)[0]?.id ?? "") : "");
+  };
+  // Whether each step (but the last) is complete enough to move past it.
+  const ready = [
+    !!g.gender && datesOk,
+    !!room,
+    !!sel && (!sel.blocked || sel.own),
+    !!g.name.trim() && !!g.phone.trim() && !!g.idNumber.trim(),
+  ];
+  const canOpen = (i: number) => ready.slice(0, i).every(Boolean);
 
   const save = () => {
     const kind = s.properties.find((p) => p.id === propertyId)?.type === "student" ? "student" : "guest";
-    if (!g.gender) {
-      const msg = t("حدد النوع (ذكر / أنثى)", "Select gender");
-      setError(msg);
-      toast.error(msg);
-      return;
-    }
+    if (!g.gender || !bedId) return;
     const res = actions.createBooking({ guest: { ...g, gender: g.gender, kind }, bedId, start, end, planId, scenario: scenarioMode });
     if (!res.ok) { setError(res.error); toast.error(res.error); return; }
     setError(null);
     setSaved({ id: res.data!.id, code: res.data!.code, key });
     toast.success(t(`تم حفظ الحجز ${res.data!.code} بحالة «قيد المراجعة»`, `Booking ${res.data!.code} saved as Under review`));
     if (getState().scenario.tourActive && scenarioMode) actions.tour({ step: 2 });
-    else navigate({ to: "/bookings/$id", params: { id: res.data!.id } });
+    navigate({ to: "/bookings", search: { status: "pending", created: res.data!.id } });
   };
 
-  const conflictTest = () => {
-    const sb = getState().bookings.find((b) => b.id === getState().scenario.bookingId);
-    if (!sb) { toast.error(t("احفظ حجز السيناريو أولًا", "Save the scenario booking first")); return; }
-    const res = actions.createBooking({ guest: { name: "ياسين مختار", phone: "01099990000", email: "yassin@example.com", idType: "national_id", idNumber: "30501010101010", kind: "student", gender: "male" }, bedId: sb.bedId, start: "2026-12-01", end: "2027-01-31", planId: "pl-month" });
-    if (!res.ok) {
-      setError(res.error);
-      actions.markConflictTested();
-      setRoom(s.beds.find((b) => b.id === sb.bedId)!.roomId);
-      toast.error(t("رفض النظام الحجز المتداخل", "Overlapping booking rejected"));
-    }
-  };
+  const buildingName = (id: string) => s.buildings.find((b) => b.id === id)?.name;
+  const property = s.properties.find((p) => p.id === propertyId);
+  const Prev = s.lang === "ar" ? ChevronRight : ChevronLeft;
+  const Next = s.lang === "ar" ? ChevronLeft : ChevronRight;
 
   return (
     <div>
       <PageHeader
         title={t("حجز جديد", "New booking")}
-        subtitle={t("فحص التوافر يتم على مستوى السرير لمنع الازدواج وتجاوز الطاقة الاستيعابية.", "Availability is checked per bed to prevent double-booking.")}
-        actions={
-          s.scenario.bookingId && (
-            <Button variant="outline" onClick={conflictTest} disabled={!allowed}>
-              <FlaskConical className="size-4" /> {t("اختبار حجز متداخل", "Test overlapping booking")}
-            </Button>
-          )
-        }
+        subtitle={t("مرحلة الحجز: حجز سرير لفترة محددة. المستندات والدفع تُستكمل لاحقًا عند التسكين.", "Booking stage: reserve a bed for a period. Documents and payment are completed at check-in.")}
       />
       {!allowed && <RoleNote />}
       {error && (
@@ -120,106 +145,188 @@ function NewBooking() {
           </div>
         </div>
       )}
+
+      <ol className="mb-4 grid grid-cols-5 gap-2">
+        {STEPS.map(([ar, en], i) => {
+          const done = i < step;
+          return (
+            <li key={i}>
+              <button
+                type="button"
+                disabled={!canOpen(i)}
+                onClick={() => setStep(i)}
+                className={cn(
+                  "flex w-full items-center gap-2 rounded-xl border p-2 text-start text-xs transition disabled:opacity-50 sm:p-3 sm:text-sm",
+                  i === step ? "border-primary bg-primary-soft font-semibold" : "bg-card hover:border-primary/40",
+                )}
+              >
+                <span className={cn("grid size-6 shrink-0 place-items-center rounded-full text-xs", i === step || done ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>
+                  {done ? <Check className="size-3.5" /> : num(i + 1)}
+                </span>
+                <span className="hidden sm:inline">{t(ar, en)}</span>
+              </button>
+            </li>
+          );
+        })}
+      </ol>
+
       <div className="grid gap-4 lg:grid-cols-3">
-        <div className="space-y-4 lg:col-span-2">
-          <Section title={t("الوحدة والفترة", "Unit & period")}>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label={t("المنشأة", "Property")}>
-                <Select value={propertyId} onValueChange={(v) => { setProperty(v); const b = s.buildings.find((x) => x.propertyId === v)!; setBuilding(b.id); const r = s.rooms.find((x) => x.buildingId === b.id)!; setRoom(r.id); setBed(firstFreeBed(r.id)); setPlan(v === "p1" ? "pl-month" : v === "p2" ? "pl-night" : "pl-week"); }}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{s.properties.map((p) => <SelectItem key={p.id} value={p.id}>{t(p.name, p.nameEn)}</SelectItem>)}</SelectContent>
-                </Select>
-              </Field>
-              <Field label={t("المبنى", "Building")}>
-                <Select value={buildingId} onValueChange={(v) => { setBuilding(v); const r = s.rooms.find((x) => x.buildingId === v)!; setRoom(r.id); setBed(firstFreeBed(r.id)); }}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{buildings.map((b) => <SelectItem key={b.id} value={b.id}>{t("مبنى", "Building")} {b.name}</SelectItem>)}</SelectContent>
-                </Select>
-              </Field>
-              <Field label={t("الغرفة / الشقة", "Room / apartment")}>
-                <Select value={roomId} onValueChange={(v) => { setRoom(v); setBed(firstFreeBed(v)); }}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{rooms.map((r) => <SelectItem key={r.id} value={r.id}>{r.code} {r.hk === "maintenance" ? `(${t("صيانة", "maint.")})` : ""}</SelectItem>)}</SelectContent>
-                </Select>
-              </Field>
-              <Field label={t("خطة السعر", "Rate plan")}>
-                <Select value={planId} onValueChange={setPlan}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{s.plans.map((p) => <SelectItem key={p.id} value={p.id}>{t(p.name, p.nameEn)} — {money(p.price)}</SelectItem>)}</SelectContent>
-                </Select>
-              </Field>
-              <Field label={t("بداية الإقامة", "Start")}><Input type="date" value={start} onChange={(e) => setStart(e.target.value)} /></Field>
-              <Field label={t("نهاية الإقامة", "End")}><Input type="date" value={end} onChange={(e) => setEnd(e.target.value)} /></Field>
-            </div>
-            <div className="mt-5">
-              <p className="mb-2 text-sm font-medium">{t("اختر السرير / الوحدة — توافر الفترة المحددة", "Pick bed — availability for selected period")}</p>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                {bedStatus.map(({ bed, conflict, own, occupiedNow }) => {
-                  const blocked = !own && (!!conflict || room?.hk === "maintenance");
-                  return (
-                    <button
-                      key={bed.id}
-                      type="button"
-                      onClick={() => setBed(bed.id)}
-                      className={cn(
-                        "rounded-xl border p-3 text-start transition",
-                        bed.id === bedId ? "border-primary ring-2 ring-primary/30" : "hover:border-primary/40",
-                        own ? "bg-primary-soft" : blocked ? "bg-destructive-soft" : "bg-success-soft",
-                      )}
-                    >
-                      <BedDouble className={cn("size-5", own ? "text-primary" : blocked ? "text-destructive" : "text-success")} />
-                      <p className="mt-1 text-sm font-semibold">{bed.label}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {own ? `${t("حجزك", "Your booking")} ${mine!.code}` : blocked ? (conflict ? `${t("محجوز", "Booked")} ${conflict.code}` : t("خارج الخدمة", "Out of service")) : t("متاح للفترة", "Available")}
-                        {occupiedNow && ` · ${t("مشغول حاليًا", "occupied now")}`}
-                      </p>
-                    </button>
-                  );
-                })}
+        <div className="lg:col-span-2">
+          <Section title={`${num(step + 1)}. ${t(...STEPS[step])}`}>
+            {step === 0 && (
+              <div className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label={t("المنشأة", "Property")}>
+                    <Select value={propertyId} onValueChange={(v) => { setProperty(v); resetRoom(); setPlan(v === "p1" ? "pl-month" : v === "p2" ? "pl-night" : "pl-week"); }}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>{s.properties.map((p) => <SelectItem key={p.id} value={p.id}>{t(p.name, p.nameEn)}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </Field>
+                  <Field label={t("خطة السعر", "Rate plan")}>
+                    <Select value={planId} onValueChange={(v) => { setPlan(v); resetRoom(); }}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>{s.plans.map((p) => <SelectItem key={p.id} value={p.id}>{t(p.name, p.nameEn)} — {money(p.price)}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </Field>
+                  <Field label={t("بداية الإقامة", "Start")}><Input type="date" value={start} onChange={(e) => { setStart(e.target.value); resetRoom(); }} /></Field>
+                  <Field label={t("نهاية الإقامة", "End")}><Input type="date" value={end} onChange={(e) => { setEnd(e.target.value); resetRoom(); }} /></Field>
+                </div>
+                {!datesOk && <p className="text-xs text-destructive">{t("تواريخ الإقامة غير صحيحة لهذه الخطة", "Dates are not valid for this plan")}</p>}
+                <div>
+                  <Label className="text-xs text-muted-foreground">{t("نوع السكن", "Housing type")}</Label>
+                  <div className="mt-1.5 grid max-w-sm grid-cols-2 gap-2">
+                    {(["male", "female"] as const).map((v) => (
+                      <Button key={v} type="button" variant={g.gender === v ? "default" : "outline"} onClick={() => { if (g.gender !== v) { setG({ ...g, gender: v }); resetRoom(); } }}>
+                        {v === "male" ? t("سكن أولاد", "Boys") : t("سكن بنات", "Girls")}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
               </div>
-            </div>
-          </Section>
-          <Section title={t("بيانات الطالب / النزيل", "Guest details")}>
-            {scenarioMode && <Pill tone="primary" className="mb-3">{t("بيانات السيناريو التجريبي", "Scenario demo data")}</Pill>}
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label={t("الاسم", "Name")}><Input value={g.name} onChange={(e) => setG({ ...g, name: e.target.value })} /></Field>
-              <Field label={t("الهاتف", "Phone")}><Input value={g.phone} onChange={(e) => setG({ ...g, phone: e.target.value })} /></Field>
-              <Field label={t("البريد الإلكتروني", "Email")}><Input value={g.email} onChange={(e) => setG({ ...g, email: e.target.value })} /></Field>
-              <Field label={t("الجامعة / الجهة", "University / company")}><Input value={g.org} onChange={(e) => setG({ ...g, org: e.target.value })} /></Field>
-              <GuestIdFields value={g} onChange={(v) => setG({ ...g, ...v })} />
-              <Field label={t("النوع", "Gender")}>
-                <Select value={g.gender} onValueChange={(v) => setG({ ...g, gender: v as Gender })}>
-                  <SelectTrigger><SelectValue placeholder={t("اختر", "Select")} /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="male">{t("ذكر", "Male")}</SelectItem>
-                    <SelectItem value="female">{t("أنثى", "Female")}</SelectItem>
-                  </SelectContent>
-                </Select>
-              </Field>
-            </div>
-          </Section>
-        </div>
-        <div className="space-y-4">
-          <Section title={t("نتيجة فحص التوافر", "Availability check")}>
-            {sel?.own ? (
-              <div className="flex gap-2 rounded-lg bg-success-soft p-3 text-sm text-success"><CheckCircle2 className="size-5 shrink-0" />{t(`تم حجز ${room?.code} / ${sel.bed.label} بالحجز ${mine!.code} (قيد المراجعة)`, `${room?.code} / ${sel.bed.label} booked as ${mine!.code} (under review)`)}</div>
-            ) : sel && !sel.conflict && room?.hk !== "maintenance" ? (
-              <div className="flex gap-2 rounded-lg bg-success-soft p-3 text-sm text-success"><CheckCircle2 className="size-5 shrink-0" />{t(`${room?.code} / ${sel.bed.label} متاح من ${start} إلى ${end}`, `${room?.code} / ${sel.bed.label} available ${start} → ${end}`)}</div>
-            ) : (
-              <div className="flex gap-2 rounded-lg bg-destructive-soft p-3 text-sm text-destructive"><AlertCircle className="size-5 shrink-0" />{sel?.conflict ? t(`متعارض مع ${sel.conflict.code} (${sel.conflict.start} → ${sel.conflict.end})`, `Conflicts with ${sel.conflict.code}`) : t("الوحدة خارج الخدمة", "Out of service")}</div>
             )}
-            <p className="mt-2 text-xs text-muted-foreground">{t(`الأسرة المتاحة في الغرفة: ${bedStatus.filter((x) => !x.conflict && !x.own).length} من ${bedStatus.length}`, `Free beds in room: ${bedStatus.filter((x) => !x.conflict && !x.own).length}/${bedStatus.length}`)}</p>
-          </Section>
-          <Section title={t("السعر الإجمالي", "Total price")}>
-            <dl className="space-y-2 text-sm">
-              <Row k={t("رسوم الإقامة", "Accommodation")} v={money(rent)} />
-              <Row k={t("التأمين (منفصل عن الإيراد)", "Deposit (separate)")} v={money(plan.deposit)} />
-              <div className="border-t pt-2"><Row k={<b>{t("إجمالي الفاتورة", "Invoice total")}</b>} v={<b className="text-lg text-primary">{money(rent + plan.deposit)}</b>} /></div>
-            </dl>
-            <p className="mt-2 text-[11px] text-muted-foreground">{t("أرقام توضيحية للعرض وليست أسعارًا معتمدة.", "Illustrative figures only.")}</p>
-            <Button className="mt-4 w-full" size="lg" onClick={save} disabled={!allowed || !!mine}>{t("حفظ الحجز (قيد المراجعة)", "Save booking (under review)")}</Button>
+
+            {step === 1 &&
+              (roomOptions.length === 0 ? (
+                <p className="py-6 text-center text-sm text-muted-foreground">{t("لا توجد غرف متاحة لهذه الفترة ونوع السكن", "No rooms available for this period and housing type")}</p>
+              ) : (
+                <>
+                  <p className="mb-3 text-xs text-muted-foreground">
+                    {t(`${num(roomOptions.length)} غرفة متاحة ${g.gender === "male" ? "لسكن الأولاد" : "لسكن البنات"} من ${start} إلى ${end}`, `${roomOptions.length} rooms open to ${g.gender === "male" ? "boys" : "girls"}, ${start} → ${end}`)}
+                  </p>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
+                    {roomOptions.map(({ room: r, free, total }) => (
+                      <button
+                        key={r.id}
+                        type="button"
+                        onClick={() => pickRoom(r.id)}
+                        className={cn("rounded-xl border bg-success-soft p-3 text-start transition", r.id === roomId ? "border-primary ring-2 ring-primary/30" : "hover:border-primary/40")}
+                      >
+                        <p className="text-sm font-semibold">{r.code}</p>
+                        <p className="text-xs text-muted-foreground">{t("مبنى", "Building")} {buildingName(r.buildingId)} · {t(...ROOM_TYPE[r.type])}</p>
+                        <p className="mt-1 text-xs text-success">{t(`${num(free.length)} من ${num(total)} سرير متاح`, `${free.length}/${total} beds free`)}</p>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              ))}
+
+            {step === 2 && room && (
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {bedStatus.map(({ bed, conflict, own, blocked, occupiedNow }) => (
+                  <button
+                    key={bed.id}
+                    type="button"
+                    disabled={blocked}
+                    onClick={() => setBed(bed.id)}
+                    className={cn(
+                      "rounded-xl border p-3 text-start transition disabled:cursor-not-allowed",
+                      bed.id === bedId ? "border-primary ring-2 ring-primary/30" : "hover:border-primary/40",
+                      own ? "bg-primary-soft" : blocked ? "bg-destructive-soft" : "bg-success-soft",
+                    )}
+                  >
+                    <BedDouble className={cn("size-5", own ? "text-primary" : blocked ? "text-destructive" : "text-success")} />
+                    <p className="mt-1 text-sm font-semibold">{bed.label}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {own ? `${t("حجزك", "Your booking")} ${mine!.code}` : blocked ? (conflict ? `${t("محجوز", "Booked")} ${conflict.code}` : room.hk === "maintenance" ? t("خارج الخدمة", "Out of service") : t("غير متاح", "Unavailable")) : t("متاح للفترة", "Available")}
+                      {occupiedNow && ` · ${t("مشغول حاليًا", "occupied now")}`}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {step === 3 && (
+              <>
+                {scenarioMode && <Pill tone="primary" className="mb-3">{t("بيانات السيناريو التجريبي", "Scenario demo data")}</Pill>}
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label={t("الاسم", "Name")}><Input value={g.name} onChange={(e) => setG({ ...g, name: e.target.value })} /></Field>
+                  <Field label={t("الهاتف", "Phone")}><Input value={g.phone} onChange={(e) => setG({ ...g, phone: e.target.value })} /></Field>
+                  <Field label={t("البريد الإلكتروني", "Email")}><Input value={g.email} onChange={(e) => setG({ ...g, email: e.target.value })} /></Field>
+                  <Field label={t("الجامعة / الجهة", "University / company")}><Input value={g.org} onChange={(e) => setG({ ...g, org: e.target.value })} /></Field>
+                  <GuestIdFields value={g} onChange={(v) => setG({ ...g, ...v })} />
+                </div>
+                <p className="mt-4 flex items-center gap-2 rounded-lg bg-muted/40 p-3 text-xs text-muted-foreground">
+                  <Info className="size-4 shrink-0" />
+                  {t("صور المستندات (الهوية، القيد، الصورة الشخصية) تُستلم عند التسكين وليس الآن.", "Document copies (ID, enrollment, photo) are collected at check-in, not now.")}
+                </p>
+              </>
+            )}
+
+            {step === 4 && room && (
+              <div className="space-y-4">
+                <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
+                  <D k={t("الطالب / النزيل", "Guest")} v={`${g.name} · ${g.phone}`} />
+                  <D k={t("نوع السكن", "Housing type")} v={g.gender === "male" ? t("سكن أولاد", "Boys") : t("سكن بنات", "Girls")} />
+                  <D k={t("المنشأة", "Property")} v={property ? t(property.name, property.nameEn) : "—"} />
+                  <D k={t("الغرفة والسرير", "Room & bed")} v={`${room.code} / ${sel?.bed.label ?? "—"}`} />
+                  <D k={t("فترة الإقامة", "Period")} v={`${start} → ${end}`} />
+                  <D k={t("خطة السعر", "Plan")} v={t(plan.name, plan.nameEn)} />
+                </dl>
+                {sel?.own ? (
+                  <div className="flex gap-2 rounded-lg bg-success-soft p-3 text-sm text-success"><CheckCircle2 className="size-5 shrink-0" />{t(`تم حجز ${room.code} / ${sel.bed.label} بالحجز ${mine!.code} (قيد المراجعة)`, `${room.code} / ${sel.bed.label} booked as ${mine!.code} (under review)`)}</div>
+                ) : sel && !sel.blocked ? (
+                  <div className="flex gap-2 rounded-lg bg-success-soft p-3 text-sm text-success"><CheckCircle2 className="size-5 shrink-0" />{t(`${room.code} / ${sel.bed.label} متاح من ${start} إلى ${end}`, `${room.code} / ${sel.bed.label} available ${start} → ${end}`)}</div>
+                ) : (
+                  <div className="flex gap-2 rounded-lg bg-destructive-soft p-3 text-sm text-destructive"><AlertCircle className="size-5 shrink-0" />{sel?.conflict ? t(`متعارض مع ${sel.conflict.code} (${sel.conflict.start} → ${sel.conflict.end})`, `Conflicts with ${sel.conflict.code}`) : t("السرير غير متاح", "Bed unavailable")}</div>
+                )}
+                <div className="rounded-lg border p-3 text-xs text-muted-foreground">
+                  <p className="mb-1 font-semibold text-foreground">{t("بعد الحفظ", "After saving")}</p>
+                  <p>{t("١. يُراجَع الحجز ويُؤكَّد ← يُنشأ العقد والفاتورة.", "1. The booking is reviewed and confirmed → contract and invoice are created.")}</p>
+                  <p>{t("٢. يوم الوصول: استلام المستندات وتحصيل الدفعة الأولى والتأمين، ثم التسكين.", "2. Arrival day: collect documents, the first installment and deposit, then check in.")}</p>
+                </div>
+                <Button className="w-full" size="lg" onClick={save} disabled={!allowed || !!mine || !ready.every(Boolean)}>{t("حفظ الحجز (قيد المراجعة)", "Save booking (under review)")}</Button>
+              </div>
+            )}
+
+            <div className="mt-5 flex items-center justify-between border-t pt-4">
+              <Button variant="ghost" disabled={step === 0} onClick={() => setStep(step - 1)}>
+                <Prev className="size-4" /> {t("السابق", "Back")}
+              </Button>
+              {step < STEPS.length - 1 && (
+                <Button disabled={!ready[step]} onClick={() => setStep(step + 1)}>
+                  {t("التالي", "Next")} <Next className="size-4" />
+                </Button>
+              )}
+            </div>
           </Section>
         </div>
+
+        {/* Rows fill in as their step is reached, so prefilled scenario data doesn't show ahead of the wizard. */}
+        <Section title={t("ملخص الحجز", "Booking summary")}>
+          <dl className="space-y-2 text-sm">
+            <Row k={t("الفترة", "Period")} v={datesOk ? `${start} → ${end}` : "—"} />
+            <Row k={t("نوع السكن", "Housing")} v={g.gender ? (g.gender === "male" ? t("أولاد", "Boys") : t("بنات", "Girls")) : "—"} />
+            <Row k={t("الغرفة", "Room")} v={(step >= 1 && room?.code) || "—"} />
+            <Row k={t("السرير", "Bed")} v={(step >= 2 && sel?.bed.label) || "—"} />
+            <Row k={t("الطالب", "Guest")} v={(step >= 3 && g.name) || "—"} />
+          </dl>
+          <dl className="mt-4 space-y-2 border-t pt-4 text-sm">
+            <Row k={t("رسوم الإقامة", "Accommodation")} v={money(rent)} />
+            <Row k={t("التأمين (منفصل عن الإيراد)", "Deposit (separate)")} v={money(plan.deposit)} />
+            <div className="border-t pt-2"><Row k={<b>{t("إجمالي الفاتورة", "Invoice total")}</b>} v={<b className="text-lg text-primary">{money(rent + plan.deposit)}</b>} /></div>
+          </dl>
+          <p className="mt-2 text-[11px] text-muted-foreground">{t("أرقام توضيحية للعرض وليست أسعارًا معتمدة.", "Illustrative figures only.")}</p>
+        </Section>
       </div>
     </div>
   );
@@ -233,5 +340,8 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   return <div className="space-y-1.5"><Label className="text-xs text-muted-foreground">{label}</Label>{children}</div>;
 }
 function Row({ k, v }: { k: React.ReactNode; v: React.ReactNode }) {
-  return <div className="flex items-center justify-between"><dt className="text-muted-foreground">{k}</dt><dd className="tabular-nums">{v}</dd></div>;
+  return <div className="flex items-center justify-between gap-3"><dt className="text-muted-foreground">{k}</dt><dd className="text-end tabular-nums">{v}</dd></div>;
+}
+function D({ k, v }: { k: string; v: React.ReactNode }) {
+  return <div><dt className="text-xs text-muted-foreground">{k}</dt><dd className="mt-0.5 font-medium">{v}</dd></div>;
 }

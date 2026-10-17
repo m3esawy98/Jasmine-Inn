@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { Printer, Receipt, Undo2 } from "lucide-react";
+import { CheckCircle2, Circle, Printer, Receipt, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,10 +8,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PageHeader, Pill, Section, run } from "@/components/stay/kit";
-import { actions, bedLabel, can, depositHeld, getState, invoiceBalance, invoiceOverdue, invoicePaid, invoiceTotal, useDemo } from "@/lib/demo/store";
+import { actions, bedLabel, can, depositHeld, getState, invoiceBalance, installments, invoiceOverdue, invoicePaid, invoiceTotal, useDemo } from "@/lib/demo/store";
 import type { PayMethod } from "@/lib/demo/types";
 import { METHOD, useDate, useMoney, useT } from "@/lib/demo/ui";
 import { meta } from "@/lib/demo/meta";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/finance/$id")({
   head: () => meta("الملف المالي", "تفاصيل الفاتورة وسجل المدفوعات والرصيد المتبقي."),
@@ -25,7 +26,7 @@ function InvoicePage() {
   const money = useMoney();
   const fmt = useDate();
   const [open, setOpen] = useState(false);
-  const [amount, setAmount] = useState("10000");
+  const [amount, setAmount] = useState("");
   const [method, setMethod] = useState<PayMethod>("cash");
   const [ref, setRef] = useState("");
   const [receipt, setReceipt] = useState<string | null>(null);
@@ -41,12 +42,14 @@ function InvoicePage() {
   const pays = s.payments.filter((p) => p.invoiceId === id);
   const total = invoiceTotal(s, id), paid = invoicePaid(s, id), bal = invoiceBalance(s, id);
   const rp = s.payments.find((p) => p.id === receipt);
+  const plan = installments(s, id);
+  const openPayment = () => { setAmount(String(plan.next?.amount ?? "")); setOpen(true); };
   return (
     <div>
       <PageHeader title={`${t("الملف المالي", "Financial file")} — ${g.name}`} subtitle={`${inv.code} · ${bedLabel(s, b.bedId)} · `} actions={
         <>
           {bal < 0 && <Button variant="outline" disabled={!can(s.role, "payment.record")} onClick={() => setRefund(true)}><Undo2 className="size-4" />{t("رد المبلغ للنزيل", "Refund guest")}</Button>}
-          <Button disabled={!can(s.role, "payment.record") || bal <= 0 || inv.status === "void"} onClick={() => setOpen(true)}><Receipt className="size-4" />{t("تسجيل دفعة", "Record payment")}</Button>
+          <Button disabled={!can(s.role, "payment.record") || bal <= 0 || inv.status === "void"} onClick={openPayment}><Receipt className="size-4" />{t("تسجيل دفعة", "Record payment")}</Button>
         </>
       } />
       <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -60,7 +63,19 @@ function InvoicePage() {
             <li className="flex justify-between border-t pt-2 font-semibold"><span>{t("الإجمالي", "Total")}</span><span>{money(total)}</span></li></ul>
           <p className="mt-3 text-xs text-muted-foreground">{t(`تأمين محتفظ به: ${money(depositHeld(s, id))} · رقم الحجز `, `Deposit held: ${money(depositHeld(s, id))} · booking `)}<Link to="/bookings/$id" params={{ id: b.id }} className="text-primary">{b.code}</Link></p>
           <p className="mt-4 text-xs font-medium text-muted-foreground">{t("جدول الاستحقاقات", "Schedule")}</p>
-          <ul className="mt-1 space-y-1 text-xs">{inv.schedule.map((x, i) => <li key={i} className="flex justify-between"><span>{fmt(x.due)}</span><span>{money(x.amount)}</span></li>)}</ul>
+          <ul className="mt-1 space-y-1.5 text-xs">
+            {plan.rows.map((x, i) => (
+              <li key={i} className="flex items-center justify-between gap-2">
+                <span className="flex items-center gap-1.5">
+                  {x.done ? <CheckCircle2 className="size-3.5 text-success" /> : <Circle className={cn("size-3.5", x.late ? "text-destructive" : "text-muted-foreground")} />}
+                  {fmt(x.due)}
+                  {!x.done && x.paid > 0 && <Pill tone="warning">{t(`مدفوع ${money(x.paid)}`, `${money(x.paid)} paid`)}</Pill>}
+                  {x.late && <Pill tone="destructive">{t("متأخر", "Overdue")}</Pill>}
+                </span>
+                <span className={cn("tabular-nums", x.done && "text-muted-foreground line-through")}>{money(x.amount)}</span>
+              </li>
+            ))}
+          </ul>
         </Section>
         <Section title={t("سجل المدفوعات", "Payment history")} className="lg:col-span-2">
           {pays.length === 0 && <p className="text-sm text-muted-foreground">{t("لا توجد مدفوعات بعد", "No payments yet")}</p>}
@@ -79,6 +94,13 @@ function InvoicePage() {
         <DialogContent>
           <DialogHeader><DialogTitle>{t("تسجيل دفعة", "Record payment")} — {inv.code}</DialogTitle></DialogHeader>
           <div className="space-y-3">
+            {plan.next && (
+              <p className="rounded-md bg-primary-soft p-2 text-xs text-primary">
+                {plan.next.due
+                  ? t(`القسط المستحق التالي: ${money(plan.next.amount)} بتاريخ ${fmt(plan.next.due)}`, `Next installment: ${money(plan.next.amount)} due ${fmt(plan.next.due)}`)
+                  : t(`مبالغ إضافية مستحقة: ${money(plan.next.amount)}`, `Additional charges due: ${money(plan.next.amount)}`)}
+              </p>
+            )}
             <p className="text-sm text-muted-foreground">{t("الرصيد الحالي:", "Current balance:")} <b>{money(bal)}</b> → {t("بعد الدفعة:", "after:")} <b className="text-primary">{money(bal - (Number(amount) || 0))}</b></p>
             <div><Label>{t("المبلغ", "Amount")}</Label><Input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} /></div>
             <div><Label>{t("طريقة الدفع", "Method")}</Label>
@@ -86,7 +108,7 @@ function InvoicePage() {
             <div><Label>{t("المرجع (اختياري)", "Reference")}</Label><Input value={ref} onChange={(e) => setRef(e.target.value)} /></div>
             {method === "online_demo" && <p className="rounded-md bg-warning-soft p-2 text-xs text-warning">{t("محاكاة فقط — لا يتم تنفيذ أي دفع إلكتروني حقيقي.", "Simulation only — no real charge.")}</p>}
           </div>
-          <DialogFooter><Button onClick={() => { const r = actions.recordPayment(id, Number(amount), method, ref); if (run(r, t("تم تسجيل الدفعة وإصدار الإيصال", "Payment recorded"))) { setOpen(false); setReceipt(r.ok ? r.data! : null); if (b.scenario && getState().scenario.tourActive) actions.tour({ step: 6 }); } }}>{t("تأكيد التسجيل", "Confirm")}</Button></DialogFooter>
+          <DialogFooter><Button onClick={() => { const r = actions.recordPayment(id, Number(amount), method, ref); if (run(r, t("تم تسجيل الدفعة وإصدار الإيصال", "Payment recorded"))) { setOpen(false); setReceipt(r.ok ? r.data! : null); if (b.scenario && getState().scenario.tourActive) actions.tour({ step: 5 }); } }}>{t("تأكيد التسجيل", "Confirm")}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 

@@ -12,7 +12,7 @@ import { meta } from "@/lib/demo/meta";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/units")({
-  validateSearch: (s: Record<string, unknown>) => ({ q: typeof s.q === "string" ? s.q : undefined }),
+  validateSearch: (s: Record<string, unknown>) => ({ q: typeof s.q === "string" ? s.q : undefined, pid: typeof s.pid === "string" ? s.pid : undefined }),
   head: () => meta("الغرف والشقق والأسرة", "عرض مرئي لتوزيع الغرف والأسرة وحالتها وحجب الوحدات للصيانة."),
   component: Units,
 });
@@ -30,7 +30,7 @@ function Units() {
     });
   const search = Route.useSearch();
   const navigate = useNavigate();
-  const [pid, setPid] = useState(s.propertyFilter === "all" ? "p1" : s.propertyFilter);
+  const [pid, setPid] = useState(s.properties.some((p) => p.id === search.pid) ? search.pid! : s.propertyFilter === "all" ? "p1" : s.propertyFilter);
   const [q, setQ] = useState(search.q ?? "");
   const [st, setSt] = useState("all");
   const [block, setBlock] = useState<string | null>(null);

@@ -15,7 +15,7 @@ export const Route = createFileRoute("/users")({
 });
 
 const PL: [Perm, string, string][] = [
-  ["booking.create", "إنشاء الحجوزات", "Create bookings"], ["booking.review", "مراجعة/تأكيد الحجوزات", "Review bookings"], ["stay.checkin", "تسجيل الوصول", "Check-in"], ["stay.checkout", "تسجيل المغادرة", "Check-out"], ["stay.inspect", "فحص الغرفة قبل المغادرة", "Pre-check-out inspection"], ["inspection.approve", "اعتماد خصومات الفحص", "Approve inspection charges"],
+  ["booking.create", "إنشاء الحجوزات", "Create bookings"], ["booking.review", "مراجعة/تأكيد الحجوزات", "Review bookings"], ["stay.checkin", "تسجيل الدخول", "Check-in"], ["stay.checkout", "تسجيل المغادرة", "Check-out"], ["stay.inspect", "فحص الغرفة قبل المغادرة", "Pre-check-out inspection"], ["inspection.approve", "اعتماد خصومات الفحص", "Approve inspection charges"],
   ["payment.record", "تسجيل التحصيل", "Record payments"], ["payment.correct", "قيود التصحيح", "Corrections"], ["task.update", "تحديث مهام النظافة", "Update tasks"], ["task.approve", "اعتماد الجاهزية", "Approve readiness"],
   ["unit.edit", "تعديل/حجب الوحدات", "Edit units"], ["pricing.edit", "تعديل الأسعار", "Edit pricing"],
 ];
