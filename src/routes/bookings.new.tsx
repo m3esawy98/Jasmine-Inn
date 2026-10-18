@@ -7,8 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PageHeader, Pill, Section } from "@/components/stay/kit";
 import { GuestIdFields } from "@/components/stay/GuestIdFields";
-import { actions, activeStayOnBed, bedConflict, bookableBeds, can, getState, useDemo } from "@/lib/demo/store";
-import { computeRent, validRange } from "@/lib/demo/calc";
+import { actions, activeStayOnBed, bedConflict, bookableBeds, can, DEMO_TODAY, getState, planForRoom, roomGenders, roomUnavailableReason, useDemo } from "@/lib/demo/store";
+import { addDays, computeRent, validRange } from "@/lib/demo/calc";
 import { useMoney, useT } from "@/lib/demo/ui";
 import { meta } from "@/lib/demo/meta";
 import type { Gender, IdType, RoomType } from "@/lib/demo/types";
@@ -16,6 +16,8 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/bookings/new")({
+  // `room`: started from a room's page, so that room is fixed and its room (and, for whole units, bed) steps are skipped.
+  validateSearch: (s: Record<string, unknown>): { room?: string } => (typeof s.room === "string" ? { room: s.room } : {}),
   head: () => meta("حجز جديد", "إنشاء حجز مع فحص فوري للتوافر ومنع ازدواج حجز الأسرة."),
   component: NewBooking,
 });
@@ -36,30 +38,46 @@ const ROOM_TYPE: Record<RoomType, [string, string]> = {
   apartment: ["شقة", "Apartment"],
 };
 
-function NewBooking() {
-  const s = useDemo();
-  const scenarioMode = !s.scenario.bookingId;
-  // The form's starting values depend on the scenario, which is only known once the saved demo data loads.
-  return <BookingWizard key={String(scenarioMode)} scenarioMode={scenarioMode} />;
+/** For a shared room, the gender of its current residents when they're all one, to preset the housing type. */
+function roomGender(s: ReturnType<typeof useDemo>, roomId: string): Gender | "" {
+  if (s.beds.filter((b) => b.roomId === roomId).length < 2) return "";
+  const g = roomGenders(s, roomId);
+  return g.size === 1 ? [...g][0] : "";
 }
 
-function BookingWizard({ scenarioMode }: { scenarioMode: boolean }) {
+function NewBooking() {
+  const s = useDemo();
+  const search = Route.useSearch();
+  const fromRoom = s.rooms.find((r) => r.id === search.room);
+  // A booking started from a room is the user's own, not the guided scenario's.
+  const scenarioMode = !s.scenario.bookingId && !fromRoom;
+  // The form's starting values depend on the scenario, which is only known once the saved demo data loads.
+  return <BookingWizard key={`${scenarioMode}|${fromRoom?.id ?? ""}`} scenarioMode={scenarioMode} fromRoomId={fromRoom?.id} />;
+}
+
+function BookingWizard({ scenarioMode, fromRoomId }: { scenarioMode: boolean; fromRoomId?: string }) {
   const s = useDemo();
   const t = useT();
   const money = useMoney();
   const navigate = useNavigate();
   const num = (n: number) => n.toLocaleString(s.lang === "ar" ? "ar-EG" : "en");
   const [step, setStep] = useState(0);
-  const [propertyId, setProperty] = useState("p1");
-  const [roomId, setRoom] = useState<string | null>(scenarioMode ? "r-A-204" : null);
+  const fromRoom = s.rooms.find((r) => r.id === fromRoomId);
+  // Stays fixed until the user asks for another room (e.g. this one isn't free for their dates).
+  const [fixedId, setFixedId] = useState(fromRoom?.id ?? null);
+  const fromPlan = fromRoom && s.plans.find((p) => p.id === planForRoom(fromRoom));
+  const [propertyId, setProperty] = useState(fromRoom?.propertyId ?? "p1");
+  const [roomId, setRoom] = useState<string | null>(scenarioMode ? "r-A-204" : (fromRoom?.id ?? null));
   const [bedId, setBed] = useState(scenarioMode ? "r-A-204-2" : "");
-  const [planId, setPlan] = useState("pl-month");
-  const [start, setStart] = useState("2026-11-01");
-  const [end, setEnd] = useState("2027-02-28");
+  const [planId, setPlan] = useState(fromPlan?.id ?? "pl-month");
+  // Nights and weeks start today; monthly stays keep the usual term dates.
+  const shortStay = fromPlan && (fromPlan.period === "daily" || fromPlan.period === "weekly");
+  const [start, setStart] = useState(shortStay ? DEMO_TODAY : "2026-11-01");
+  const [end, setEnd] = useState(shortStay ? addDays(DEMO_TODAY, fromPlan.period === "daily" ? 3 : 14) : "2027-02-28");
   const [g, setG] = useState<{ name: string; phone: string; email: string; idType: IdType; idNumber: string; nationality: string; org: string; gender: Gender | "" }>(
     scenarioMode
       ? { name: "عمر حسن", phone: "01012345678", email: "omar.hassan@example.com", idType: "national_id", idNumber: "30405120101234", nationality: "", org: "جامعة القاهرة", gender: "male" }
-      : { name: "", phone: "", email: "", idType: "national_id", idNumber: "", nationality: "", org: "", gender: "" },
+      : { name: "", phone: "", email: "", idType: "national_id", idNumber: "", nationality: "", org: "", gender: fromRoom ? roomGender(s, fromRoom.id) : "" },
   );
   const [error, setError] = useState<string | null>(null);
 
@@ -97,15 +115,29 @@ function BookingWizard({ scenarioMode }: { scenarioMode: boolean }) {
   const sel = bedStatus.find((x) => x.bed.id === bedId);
   const allowed = can(s.role, "booking.create");
 
-  // Changing an earlier step invalidates the choices made after it.
-  const resetRoom = () => { setRoom(null); setBed(""); };
+  // Changing an earlier step invalidates the choices made after it; a fixed room stays, only its bed is re-picked.
+  const resetRoom = () => { if (!fixedId) setRoom(null); setBed(""); };
   const pickRoom = (rid: string) => {
     setRoom(rid);
     setBed(g.gender ? (bookableBeds(s, rid, start, end, planId, g.gender)[0]?.id ?? "") : "");
   };
+  const fixed = s.rooms.find((r) => r.id === fixedId);
+  const fixedWhole = !!fixed && s.beds.filter((b) => b.roomId === fixed.id).length === 1;
+  const unavailable = fixed && g.gender && datesOk ? roomUnavailableReason(s, fixed.id, start, end, planId, g.gender) : undefined;
+  // In a fixed shared room, the housing type its residents for these dates rule out (e.g. boys in a girls' room).
+  const blockedGender = (v: Gender) => !!fixed && datesOk && roomUnavailableReason(s, fixed.id, start, end, planId, v) === "gender";
+  // A fixed room skips choosing the room, and a whole unit (one bookable place) skips choosing the bed too.
+  const visible = [0, 1, 2, 3, 4].filter((i) => !(fixed && i === 1) && !(fixedWhole && i === 2));
+  const go = (to: number) => {
+    // Leaving the first step with a fixed room picks its first free bed for the chosen dates.
+    if (fixed && step === 0) pickRoom(fixed.id);
+    setStep(to);
+  };
+  const nextStep = visible.find((i) => i > step);
+  const prevStep = [...visible].reverse().find((i) => i < step);
   // Whether each step (but the last) is complete enough to move past it.
   const ready = [
-    !!g.gender && datesOk,
+    !!g.gender && datesOk && !unavailable,
     !!room,
     !!sel && (!sel.blocked || sel.own),
     !!g.name.trim() && !!g.phone.trim() && !!g.idNumber.trim(),
@@ -146,22 +178,23 @@ function BookingWizard({ scenarioMode }: { scenarioMode: boolean }) {
         </div>
       )}
 
-      <ol className="mb-4 grid grid-cols-5 gap-2">
-        {STEPS.map(([ar, en], i) => {
+      <ol className={cn("mb-4 grid gap-2", visible.length === 5 ? "grid-cols-5" : visible.length === 4 ? "grid-cols-4" : "grid-cols-3")}>
+        {visible.map((i, n) => {
+          const [ar, en] = STEPS[i];
           const done = i < step;
           return (
             <li key={i}>
               <button
                 type="button"
                 disabled={!canOpen(i)}
-                onClick={() => setStep(i)}
+                onClick={() => go(i)}
                 className={cn(
                   "flex w-full items-center gap-2 rounded-xl border p-2 text-start text-xs transition disabled:opacity-50 sm:p-3 sm:text-sm",
                   i === step ? "border-primary bg-primary-soft font-semibold" : "bg-card hover:border-primary/40",
                 )}
               >
                 <span className={cn("grid size-6 shrink-0 place-items-center rounded-full text-xs", i === step || done ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>
-                  {done ? <Check className="size-3.5" /> : num(i + 1)}
+                  {done ? <Check className="size-3.5" /> : num(n + 1)}
                 </span>
                 <span className="hidden sm:inline">{t(ar, en)}</span>
               </button>
@@ -172,12 +205,18 @@ function BookingWizard({ scenarioMode }: { scenarioMode: boolean }) {
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2">
-          <Section title={`${num(step + 1)}. ${t(...STEPS[step])}`}>
+          <Section title={`${num(visible.indexOf(step) + 1)}. ${t(...STEPS[step])}`}>
             {step === 0 && (
               <div className="space-y-4">
+                {fixed && (
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/30 bg-primary-soft p-3 text-sm">
+                    <span>{t("حجز", "Booking")} <b>{fixed.code}</b> · {t(...ROOM_TYPE[fixed.type])}{fixed.type === "hotel" && ` · ${fixed.sleeps === 1 ? t("فردي", "single") : t("ثنائي", "double")}`}</span>
+                    <Button variant="link" className="h-auto p-0" onClick={() => { setFixedId(null); setRoom(null); setBed(""); }}>{t("اختيار غرفة أخرى", "Choose another room")}</Button>
+                  </div>
+                )}
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Field label={t("المنشأة", "Property")}>
-                    <Select value={propertyId} onValueChange={(v) => { setProperty(v); resetRoom(); setPlan(v === "p1" ? "pl-month" : v === "p2" ? "pl-night" : "pl-week"); }}>
+                    <Select value={propertyId} disabled={!!fixed} onValueChange={(v) => { setProperty(v); resetRoom(); setPlan(v === "p1" ? "pl-month" : v === "p2" ? "pl-night" : "pl-week"); }}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>{s.properties.map((p) => <SelectItem key={p.id} value={p.id}>{t(p.name, p.nameEn)}</SelectItem>)}</SelectContent>
                     </Select>
@@ -192,11 +231,20 @@ function BookingWizard({ scenarioMode }: { scenarioMode: boolean }) {
                   <Field label={t("نهاية الإقامة", "End")}><Input type="date" value={end} onChange={(e) => { setEnd(e.target.value); resetRoom(); }} /></Field>
                 </div>
                 {!datesOk && <p className="text-xs text-destructive">{t("تواريخ الإقامة غير صحيحة لهذه الخطة", "Dates are not valid for this plan")}</p>}
+                {fixed && unavailable && (
+                  <p className="flex items-center gap-2 rounded-lg bg-destructive-soft p-3 text-sm text-destructive">
+                    <AlertCircle className="size-4 shrink-0" />
+                    {unavailable === "maintenance" ? t(`${fixed.code} محجوبة للصيانة.`, `${fixed.code} is blocked for maintenance.`)
+                      : unavailable === "plan" ? t(`خطة السعر لا تناسب ${fixed.code}؛ اختر الخطة المناسبة لها.`, `This rate plan doesn't fit ${fixed.code}; pick the one that does.`)
+                      : unavailable === "gender" ? t(`${fixed.code} يسكنها ${g.gender === "male" ? "بنات" : "أولاد"} في هذه الفترة.`, `${fixed.code} houses ${g.gender === "male" ? "girls" : "boys"} for these dates.`)
+                      : t(`${fixed.code} محجوزة في هذه الفترة؛ غيّر التواريخ أو اختر غرفة أخرى.`, `${fixed.code} is booked for these dates; change them or choose another room.`)}
+                  </p>
+                )}
                 <div>
                   <Label className="text-xs text-muted-foreground">{t("نوع السكن", "Housing type")}</Label>
                   <div className="mt-1.5 grid max-w-sm grid-cols-2 gap-2">
                     {(["male", "female"] as const).map((v) => (
-                      <Button key={v} type="button" variant={g.gender === v ? "default" : "outline"} onClick={() => { if (g.gender !== v) { setG({ ...g, gender: v }); resetRoom(); } }}>
+                      <Button key={v} type="button" variant={g.gender === v ? "default" : "outline"} disabled={blockedGender(v)} onClick={() => { if (g.gender !== v) { setG({ ...g, gender: v }); resetRoom(); } }}>
                         {v === "male" ? t("سكن أولاد", "Boys") : t("سكن بنات", "Girls")}
                       </Button>
                     ))}
@@ -300,11 +348,11 @@ function BookingWizard({ scenarioMode }: { scenarioMode: boolean }) {
             )}
 
             <div className="mt-5 flex items-center justify-between border-t pt-4">
-              <Button variant="ghost" disabled={step === 0} onClick={() => setStep(step - 1)}>
+              <Button variant="ghost" disabled={prevStep === undefined} onClick={() => prevStep !== undefined && setStep(prevStep)}>
                 <Prev className="size-4" /> {t("السابق", "Back")}
               </Button>
-              {step < STEPS.length - 1 && (
-                <Button disabled={!ready[step]} onClick={() => setStep(step + 1)}>
+              {nextStep !== undefined && (
+                <Button disabled={!ready[step]} onClick={() => go(nextStep)}>
                   {t("التالي", "Next")} <Next className="size-4" />
                 </Button>
               )}
@@ -317,7 +365,7 @@ function BookingWizard({ scenarioMode }: { scenarioMode: boolean }) {
           <dl className="space-y-2 text-sm">
             <Row k={t("الفترة", "Period")} v={datesOk ? `${start} → ${end}` : "—"} />
             <Row k={t("نوع السكن", "Housing")} v={g.gender ? (g.gender === "male" ? t("أولاد", "Boys") : t("بنات", "Girls")) : "—"} />
-            <Row k={t("الغرفة", "Room")} v={(step >= 1 && room?.code) || "—"} />
+            <Row k={t("الغرفة", "Room")} v={((step >= 1 || fixed) && room?.code) || "—"} />
             <Row k={t("السرير", "Bed")} v={(step >= 2 && sel?.bed.label) || "—"} />
             <Row k={t("الطالب", "Guest")} v={(step >= 3 && g.name) || "—"} />
           </dl>

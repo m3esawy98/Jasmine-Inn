@@ -96,20 +96,17 @@ function Units() {
                     .map((bd) => upcomingBookingOnBed(s, bd.id))
                     .filter((b) => !!b)
                     .sort((a, b) => a.start.localeCompare(b.start));
-                  const hasResidents = status === "partial" || status === "full" || upcoming.length > 0;
                   // Occupied, then upcoming, then free, so they sit in that order from the start (right in Arabic).
                   const rank = (bedId: string) => (activeStayOnBed(s, bedId) ? 0 : upcomingBookingOnBed(s, bedId) ? 1 : 2);
                   return (
                     <div
                       key={r.id}
-                      // Rooms with residents open the room detail page listing who is staying there.
-                      {...(hasResidents && {
-                        role: "link",
-                        tabIndex: 0,
-                        onClick: () => navigate({ to: "/rooms/$id", params: { id: r.id } }),
-                        onKeyDown: (e: React.KeyboardEvent) => e.key === "Enter" && navigate({ to: "/rooms/$id", params: { id: r.id } }),
-                      })}
-                      className={cn("rounded-xl border p-3", hasResidents && "cursor-pointer transition hover:border-primary/50 hover:shadow-sm")}
+                      // Every room opens its page: who is staying there, and a new booking for free ones.
+                      role="link"
+                      tabIndex={0}
+                      onClick={() => navigate({ to: "/rooms/$id", params: { id: r.id } })}
+                      onKeyDown={(e: React.KeyboardEvent) => e.key === "Enter" && navigate({ to: "/rooms/$id", params: { id: r.id } })}
+                      className="cursor-pointer rounded-xl border p-3 transition hover:border-primary/50 hover:shadow-sm"
                     >
                       <div className="flex items-center justify-between"><b>{r.code}</b>{can(s.role, "unit.edit") && r.hk === "ready" && <button title={t("حجب للصيانة", "Block")} onClick={(e) => { e.stopPropagation(); setBlock(r.id); }}><Lock className="size-3.5 text-muted-foreground hover:text-destructive" /></button>}</div>
                       {(r.type === "apartment" || r.type === "hotel") && <p className="text-xs text-muted-foreground">{r.type === "apartment" ? t(`شقة ${size(r.sleeps)}`, `Apartment (${size(r.sleeps)})`) : t(`غرفة ${size(r.sleeps)}`, `Room (${size(r.sleeps)})`)}</p>}

@@ -1,9 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowRight, BedDouble, CalendarDays, IdCard, Mail, Phone } from "lucide-react";
+import { ArrowRight, BedDouble, CalendarDays, IdCard, Mail, Phone, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader, Pill, Section, StatusPill } from "@/components/stay/kit";
 import {
   activeStayOnBed,
+  can,
   invoiceBalance,
   roomGenders,
   roomStatus,
@@ -55,6 +56,14 @@ function RoomDetail() {
                 <Pill tone="female">{t("طالبات", "Female")}</Pill>
               ) : (
                 <Pill tone="info">{t("طلاب", "Male")}</Pill>
+              ))}
+            {can(s.role, "booking.create") &&
+              (room.hk === "maintenance" ? (
+                <Button disabled title={t("الغرفة محجوبة للصيانة", "Blocked for maintenance")}><Plus className="size-4" />{t("حجز جديد", "New booking")} · {t("محجوبة للصيانة", "under maintenance")}</Button>
+              ) : (
+                <Button asChild>
+                  <Link to="/bookings/new" search={{ room: room.id }}><Plus className="size-4" />{t("حجز جديد", "New booking")}</Link>
+                </Button>
               ))}
             <Button variant="outline" asChild>
               <Link to="/units" search={{ q: undefined, pid: room.propertyId, from: undefined }}>

@@ -166,6 +166,23 @@ export function bookableBeds(s: DemoState, roomId: string, start: string, end: s
     (b) => b.roomId === roomId && !bedConflict(s, b.id, start, end, planId) && !genderConflict(s, b.id, start, end, planId, gender),
   );
 }
+/** The rate plan a booking started from a room begins on: monthly for students, the hotel night rate for
+ *  its size, weekly for apartments. */
+export function planForRoom(room: Room) {
+  if (room.type === "hotel") return room.sleeps === 1 ? "pl-night-single" : "pl-night";
+  return room.type === "apartment" ? "pl-week" : "pl-month";
+}
+/** Why a room can't take this booking, or undefined when it has a bed for it. */
+export function roomUnavailableReason(s: DemoState, roomId: string, start: string, end: string, planId: string, gender: Gender) {
+  const room = s.rooms.find((r) => r.id === roomId);
+  const plan = s.plans.find((p) => p.id === planId);
+  if (!room || room.hk === "maintenance") return "maintenance" as const;
+  if (plan && !planFitsRoom(plan, room)) return "plan" as const;
+  if (bookableBeds(s, roomId, start, end, planId, gender).length > 0) return undefined;
+  const beds = s.beds.filter((b) => b.roomId === roomId);
+  // Some bed is free of bookings, so it's the other gender sharing the room that blocks it.
+  return beds.some((b) => !bedConflict(s, b.id, start, end, planId)) ? ("gender" as const) : ("booked" as const);
+}
 /** Start of the collections period shown on the dashboard (previous month through today). */
 export const PERIOD_START = addMonths(`${DEMO_TODAY.slice(0, 7)}-01`, -1);
 
