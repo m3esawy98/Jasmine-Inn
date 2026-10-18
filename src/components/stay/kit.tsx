@@ -93,6 +93,9 @@ export function computeAlerts(s: DemoState, t: (a: string, e: string) => string)
   // Room cards: a working card with no checked-in stay should never exist; refused entries come from the locks.
   const cards = cardAlerts(s);
   const roomCode = (id: string) => s.rooms.find((r) => r.id === id)?.code ?? "";
+  // Residents who left the desk without a room card (never encoded, or every card cancelled).
+  const noCard = s.bookings.filter((b) => b.status === "checked_in" && inScope(s, s.rooms.find((r) => r.id === s.beds.find((x) => x.id === b.bedId)?.roomId)?.propertyId ?? "") && !s.cards.some((k) => k.bookingId === b.id && k.status === "active")).length;
+  if (noCard) out.push({ tone: "warning", text: t(`${noCard} مقيمين بدون كارت غرفة`, `${noCard} residents without a room card`), to: "/stays", search: { tab: "in" } });
   if (cards.orphan.length) out.push({ tone: "destructive", text: t(`تنبيه أمني: ${cards.orphan.length} كارت يفتح غرفة بدون إقامة مسجلة`, `Security: ${cards.orphan.length} cards open a room with no recorded stay`), to: "/units" });
   for (const e of cards.refused.filter((x) => inScope(s, s.rooms.find((r) => r.id === x.roomId)?.propertyId ?? "")))
     out.push({ tone: "destructive", text: t(`محاولة دخول بكارت منتهي – غرفة ${roomCode(e.roomId)} (${e.at.slice(11, 16)})`, `Entry refused, expired card – room ${roomCode(e.roomId)} (${e.at.slice(11, 16)})`), to: "/rooms/$id".replace("$id", e.roomId) });

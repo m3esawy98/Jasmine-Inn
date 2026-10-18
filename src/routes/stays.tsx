@@ -58,13 +58,18 @@ function Stays() {
   // The resident just checked in from this page, listed first under In-house.
   const [justIn, setJustIn] = useState<string | null>(null);
   const residents = justIn ? [...inhouse].sort((a, b) => (b.id === justIn ? 1 : 0) - (a.id === justIn ? 1 : 0)) : inhouse;
+  // A guest just checked in stays on the check-in tab until their room card is encoded (or the desk moves on).
+  const [finishing, setFinishing] = useState<string | null>(null);
+  const finishingBooking = s.bookings.find((b) => b.id === finishing && b.status === "checked_in");
+  const arrivalsShown = finishingBooking ? arrivals.map((g) => (g.key === "today" ? { ...g, items: [finishingBooking, ...g.items] } : g)) : arrivals;
+  const toResidents = (id: string) => { setFinishing(null); setJustIn(id); setTab("in"); setSel(id); };
   return (
     <div>
       <PageHeader
         title={t("تسجيل الدخول والمغادرة", "Check-in & check-out")}
         subtitle={t(`اليوم ${DEMO_TODAY} · الإشغال الفعلي يبدأ عند تسجيل الدخول وينتهي عند تسجيل المغادرة.`, `Today ${DEMO_TODAY} · actual occupancy runs from check-in to check-out.`)}
       />
-      <Tabs dir={s.lang === "ar" ? "rtl" : "ltr"} value={tab} onValueChange={(v) => { setTab(v); setSel(null); }}>
+      <Tabs dir={s.lang === "ar" ? "rtl" : "ltr"} value={tab} onValueChange={(v) => { setTab(v); setSel(null); setFinishing(null); }}>
         <TabsList className={CARD_TABS}>
           <CardTab value="arr" icon={LogIn} label={t("تسجيل الدخول", "Check-in")} count={num(confirmed.length)} />
           <CardTab value="in" icon={BedDouble} label={t("المقيمون حاليًا", "In-house")} count={num(inhouse.length)} />
@@ -72,8 +77,8 @@ function Stays() {
           <CardTab value="late" icon={AlarmClock} label={t("تجاوز موعد المغادرة", "Past departure date")} count={num(overstays.length)} alert={overstays.length > 0} />
         </TabsList>
         <TabsContent value="arr">
-          <Split groups={arrivals} sel={sel} setSel={setSel} date={(b) => b.start} empty={t(`لا يوجد وصول متوقع خلال ${num(WINDOW_DAYS)} أيام`, `No arrivals in the next ${WINDOW_DAYS} days`)}>
-            {(b) => <ArrivalPanel key={b.id} b={b} onCheckedIn={() => { setJustIn(b.id); setTab("in"); setSel(b.id); }} />}
+          <Split groups={arrivalsShown} fresh={finishing} sel={sel} setSel={setSel} date={(b) => b.start} empty={t(`لا يوجد وصول متوقع خلال ${num(WINDOW_DAYS)} أيام`, `No arrivals in the next ${WINDOW_DAYS} days`)}>
+            {(b) => <ArrivalPanel key={b.id} b={b} onCheckedIn={() => { setFinishing(b.id); setSel(b.id); }} onDone={() => toResidents(b.id)} />}
           </Split>
         </TabsContent>
         <TabsContent value="in">
@@ -95,6 +100,9 @@ function Stays() {
     </div>
   );
 }
+
+/** Whether a guest ever got a card that wasn't cancelled (an expired one still counts as handed over). */
+const hasCard = (s: ReturnType<typeof useDemo>, bookingId: string) => s.cards.some((k) => k.bookingId === bookingId && k.status === "active");
 
 function Split({ groups, fresh, sel, setSel, date, empty, children }: { groups: Group[]; fresh?: string | null; sel: string | null; setSel: (v: string) => void; date: (b: Booking) => string; empty: string; children: (b: Booking) => ReactNode }) {
   const s = useDemo();
@@ -123,7 +131,7 @@ function Split({ groups, fresh, sel, setSel, date, empty, children }: { groups: 
                 {g.items.map((b) => (
                   <li key={b.id}>
                     <button data-id={b.id} onClick={() => setSel(b.id)} className={cn("flex w-full items-center justify-between gap-2 rounded-lg px-2 py-2.5 text-start text-sm", current?.id === b.id && "bg-primary-soft")}>
-                      <span><span className="font-medium">{guestName(s, b.guestId)}</span>{b.scenario && <Pill tone="primary" className="ms-2">{t("السيناريو", "Scenario")}</Pill>}{b.id === fresh && <Pill tone="success" className="ms-2">{t("تم الدخول الآن", "Just checked in")}</Pill>}<span className="block text-xs text-muted-foreground">{bedLabel(s, b.bedId)}</span></span>
+                      <span><span className="font-medium">{guestName(s, b.guestId)}</span>{b.scenario && <Pill tone="primary" className="ms-2">{t("السيناريو", "Scenario")}</Pill>}{b.id === fresh && <Pill tone="success" className="ms-2">{t("تم الدخول الآن", "Just checked in")}</Pill>}{b.status === "checked_in" && !hasCard(s, b.id) && <Pill tone="warning" className="ms-2">{t("بدون كارت", "No card")}</Pill>}<span className="block text-xs text-muted-foreground">{bedLabel(s, b.bedId)}</span></span>
                       <span className="text-xs text-muted-foreground">{fmt(date(b))}</span>
                     </button>
                   </li>
@@ -196,13 +204,13 @@ function GuestHeader({ b, children }: { b: Booking; children?: ReactNode }) {
 }
 
 /** An expected arrival: booking summary first; the check-in steps open on demand. */
-function ArrivalPanel({ b, onCheckedIn }: { b: Booking; onCheckedIn: () => void }) {
+function ArrivalPanel({ b, onCheckedIn, onDone }: { b: Booking; onCheckedIn: () => void; onDone: () => void }) {
   const s = useDemo();
   const t = useT();
   const fmt = useDate();
   const money = useMoney();
   const [open, setOpen] = useState(false);
-  if (open) return <CheckInPanel b={b} onCheckedIn={onCheckedIn} />;
+  if (open || b.status === "checked_in") return <CheckInPanel b={b} onCheckedIn={onCheckedIn} onDone={onDone} />;
   const pay = checkInPayment(s, b);
   const docs = [b.docs.id, b.docs.enrollment, b.docs.photo].filter(Boolean).length;
   return (
@@ -219,7 +227,7 @@ function ArrivalPanel({ b, onCheckedIn }: { b: Booking; onCheckedIn: () => void 
   );
 }
 
-function CheckInPanel({ b, onCheckedIn }: { b: Booking; onCheckedIn: () => void }) {
+function CheckInPanel({ b, onCheckedIn, onDone }: { b: Booking; onCheckedIn: () => void; onDone: () => void }) {
   const s = useDemo();
   const t = useT();
   const fmt = useDate();
@@ -234,8 +242,12 @@ function CheckInPanel({ b, onCheckedIn }: { b: Booking; onCheckedIn: () => void 
   const pay = checkInPayment(s, b);
   const payOk = !!pay && pay.paid >= pay.due;
   const docsOk = b.docs.id && b.docs.enrollment && b.docs.photo;
-  const bedOk = room.hk === "ready" && !occupant;
+  // Once checked in, the occupant is this guest: the bed step stays done.
+  const bedOk = occupant?.bookingId === b.id || (room.hk === "ready" && !occupant);
   const early = b.start > DEMO_TODAY;
+  const checkedIn = b.status === "checked_in";
+  const stay = s.stays.find((x) => x.bookingId === b.id && x.status === "active");
+  const card = bookingCards(s, b.id).find((k) => cardState(k) === "active");
   const docs: [keyof Booking["docs"], string, string][] = [
     ["id", g.idType === "passport" ? "صورة جواز السفر" : "صورة بطاقة الرقم القومي", g.idType === "passport" ? "Passport copy" : "National ID copy"],
     ["enrollment", g.kind === "student" ? "إثبات القيد الجامعي" : "بيانات الجهة", "Enrollment / company proof"],
@@ -291,16 +303,13 @@ function CheckInPanel({ b, onCheckedIn }: { b: Booking; onCheckedIn: () => void 
     {
       title: t("تسجيل الدخول على النظام", "Check in on the system"),
       who: t("الاستقبال", "Front desk"),
-      done: false,
-      note: early ? t(`موعد الوصول ${fmt(b.start)}`, `Arrival date ${fmt(b.start)}`) : undefined,
-      body: (
+      done: checkedIn,
+      note: checkedIn ? t(`تم تسجيل الدخول ${stay ? fmt(stay.checkInAt, true) : ""}`, `Checked in ${stay ? fmt(stay.checkInAt, true) : ""}`) : early ? t(`موعد الوصول ${fmt(b.start)}`, `Arrival date ${fmt(b.start)}`) : undefined,
+      body: !checkedIn && (
         <>
           {blockers.length > 0 && <p className="mb-2 text-xs text-destructive">{t("أكمل الخطوات السابقة أولًا: ", "Finish the steps above first: ")}{blockers.join(" • ")}</p>}
           <Button size="lg" className="w-full" disabled={blockers.length > 0 || !can(s.role, "stay.checkin")} onClick={() => {
-            if (!run(actions.checkIn(b.id), t("تم تسجيل الدخول وبدء الإقامة الفعلية", "Checked in"))) return;
-            // The tour moves on to the invoice step; its "Continue" button opens the invoice when wanted.
-            if (b.scenario && getState().scenario.tourActive) actions.tour({ step: 4 });
-            onCheckedIn();
+            if (run(actions.checkIn(b.id), t("تم تسجيل الدخول وبدء الإقامة الفعلية", "Checked in"))) onCheckedIn();
           }}><LogIn className="size-4" />{t("تسجيل الدخول", "Check in")}</Button>
         </>
       ),
@@ -308,16 +317,28 @@ function CheckInPanel({ b, onCheckedIn }: { b: Booking; onCheckedIn: () => void 
     {
       title: t("تكويد وتسليم كارت الغرفة", "Encode and hand over the room card"),
       who: t("الاستقبال", "Front desk"),
-      done: false,
+      done: !!card,
       // No card opens a door without a confirmed, checked-in booking behind it.
-      note: t("يُكوَّد بعد تسجيل الدخول فقط؛ لا يعمل أي كارت بدون حجز مؤكد وإقامة مسجلة على النظام.", "Encoded only after check-in: no card works without a confirmed booking and a recorded stay."),
-      body: <Button className="w-full" variant="outline" disabled><Nfc className="size-4" />{t("تكويد كارت الغرفة", "Encode the room card")}</Button>,
+      note: card
+        ? t(`الكارت ${card.code} صالح حتى ${fmt(card.validUntil, true)}`, `Card ${card.code} valid until ${fmt(card.validUntil, true)}`)
+        : t("يُكوَّد بعد تسجيل الدخول فقط؛ لا يعمل أي كارت بدون حجز مؤكد وإقامة مسجلة على النظام.", "Encoded only after check-in: no card works without a confirmed booking and a recorded stay."),
+      body: checkedIn ? (
+        // The tour moves on to the invoice once the card is handed over.
+        <KeyCardPanel b={b} onEncoded={() => { if (b.scenario && getState().scenario.tourActive) actions.tour({ step: 4 }); }} />
+      ) : (
+        <Button className="w-full" variant="outline" disabled><Nfc className="size-4" />{t("تكويد كارت الغرفة", "Encode the room card")}</Button>
+      ),
     },
   ];
   return (
     <Section title={t("تسجيل الدخول", "Check-in")}>
       <GuestHeader b={b} />
       <Steps steps={steps} />
+      {checkedIn && (
+        <Button className="mt-3 w-full" variant={card ? "default" : "ghost"} onClick={onDone}>
+          {card ? t("تم تسجيل الدخول — الذهاب إلى صفحة المقيمين", "Checked in — go to in-house") : t("متابعة بدون كارت (يظهر «بدون كارت» في المقيمين)", "Continue without a card (marked “No card” in-house)")}
+        </Button>
+      )}
     </Section>
   );
 }

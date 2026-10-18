@@ -18,7 +18,7 @@ export const CARD_STATE: Record<ReturnType<typeof cardState>, [string, string, s
 };
 
 /** A guest's room cards: encode one (only for a checked-in stay), add a second, or replace a lost one. */
-export function KeyCardPanel({ b }: { b: Booking }) {
+export function KeyCardPanel({ b, onEncoded }: { b: Booking; onEncoded?: () => void }) {
   const s = useDemo();
   const t = useT();
   const fmt = useDate();
@@ -37,7 +37,7 @@ export function KeyCardPanel({ b }: { b: Booking }) {
       const res = replace ? actions.replaceCard(replace.id, reason) : actions.issueCard(b.id);
       run(res, res.ok ? t(`تم تكويد الكارت ${res.data!.code}`, `Card ${res.data!.code} encoded`) : "");
       setEncoding(false);
-      if (res.ok) { setReplacing(null); setReason(""); }
+      if (res.ok) { setReplacing(null); setReason(""); onEncoded?.(); }
     }, ENCODE_MS);
   };
   return (
