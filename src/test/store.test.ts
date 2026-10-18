@@ -381,7 +381,7 @@ describe("pages by role", () => {
     // Reading bookings doesn't open making them.
     expect(canSee("accountant", "/bookings/new")).toBe(false);
     expect(canSee("frontdesk", "/settings")).toBe(false);
-    expect(canSee("auditor", "/settings")).toBe(true);
+    expect(canSee("auditor", "/settings")).toBe(false);
     // The auditor reviews records but doesn't get the pages that carry out work.
     expect(canSee("auditor", "/bookings/bk1001")).toBe(true);
     expect(canSee("auditor", "/bookings/new")).toBe(false);

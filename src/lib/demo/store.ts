@@ -93,8 +93,8 @@ export const ROLE_PAGES: Record<Role, readonly string[] | "all"> = {
   exec: "all",
   manager: "all",
   // Reviews records but changes nothing, so the pages that exist to carry out work (new booking, check-in
-  // and check-out, housekeeping tasks) are left out.
-  auditor: ["/", "/properties", "/units", "/bookings", "/guests", "/contracts", "/finance", "/reports", "/users", "/settings"],
+  // and check-out, housekeeping tasks) and the system settings are left out.
+  auditor: ["/", "/properties", "/units", "/bookings", "/guests", "/contracts", "/finance", "/reports", "/users"],
   frontdesk: ["/", "/units", "/bookings/new", "/bookings", "/stays", "/guests"],
   reservations: ["/", "/units", "/bookings/new", "/bookings", "/guests", "/contracts"],
   accountant: ["/", "/bookings", "/contracts", "/finance", "/reports"],
