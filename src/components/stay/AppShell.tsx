@@ -1,10 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { DirectionProvider } from "@radix-ui/react-direction";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import {
-  BarChart3, BedDouble, Bell, Building2, CalendarCheck, CalendarDays, ClipboardList, FileSignature, Globe, KeyRound,
-  LayoutDashboard, Menu, Plus, RotateCcw, Search, Settings, ShieldCheck, Sparkles, Users, Wallet, Wrench,
-} from "lucide-react";
+import { BarChart3, BedDouble, Bell, Building2, CalendarCheck, CalendarDays, CalendarPlus, ClipboardList, FileSignature, Globe, KeyRound, LayoutDashboard, Menu, Plus, RotateCcw, Search, Settings, ShieldCheck, Sparkles, Users, Wallet, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -26,7 +23,8 @@ const NAV = [
   { to: "/", icon: LayoutDashboard, ar: "لوحة التحكم", en: "Dashboard" },
   { to: "/properties", icon: Building2, ar: "المنشآت والمباني", en: "Properties" },
   { to: "/units", icon: BedDouble, ar: "الغرف والشقق والأسرة", en: "Rooms & beds" },
-  { to: "/bookings", icon: CalendarDays, ar: "الحجوزات", en: "Bookings" },
+  { to: "/bookings/new", icon: CalendarPlus, ar: "حجز جديد", en: "New booking" },
+  { to: "/bookings", icon: CalendarDays, ar: "الحجوزات الحالية", en: "Current bookings" },
   { to: "/stays", icon: KeyRound, ar: "الإقامة والتسكين", en: "Stays & check-in" },
   { to: "/guests", icon: Users, ar: "العملاء والطلاب", en: "Guests & students" },
   { to: "/contracts", icon: FileSignature, ar: "العقود والأسعار", en: "Contracts & rates" },
@@ -40,10 +38,13 @@ const NAV = [
 function NavList({ onNav }: { onNav?: () => void }) {
   const t = useT();
   const path = useRouterState({ select: (r) => r.location.pathname });
+  // The most specific matching item is active, so "New booking" doesn't also light up "Current bookings".
+  const matches = (to: string) => (to === "/" ? path === "/" : path === to || path.startsWith(`${to}/`));
+  const activeTo = NAV.filter((n) => matches(n.to)).sort((a, b) => b.to.length - a.to.length)[0]?.to;
   return (
     <nav className="flex flex-col gap-0.5">
       {NAV.map((n) => {
-        const active = n.to === "/" ? path === "/" : path.startsWith(n.to);
+        const active = n.to === activeTo;
         return (
           <Link
             key={n.to}
