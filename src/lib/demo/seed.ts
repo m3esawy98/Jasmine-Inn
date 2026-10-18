@@ -21,7 +21,7 @@ import type {
 import { addDays, addMonths, cardExpiry, computeRent } from "./calc";
 
 export const DEMO_TODAY = "2026-11-01";
-export const STATE_VERSION = 15;
+export const STATE_VERSION = 16;
 
 function rng(seed: number) {
   let s = seed;
@@ -54,7 +54,7 @@ export function createSeed(): DemoState {
   const properties: Property[] = [
     { id: "p1", name: "جاسمين إن إسكان جامعي", nameEn: "Jasmine Inn University Housing", city: "مدينة بدر", cityEn: "Badr City", type: "student", amenities: ["واي فاي", "مكتبة مذاكرة", "مطبخ مشترك", "مغسلة", "أمن 24 ساعة"] },
     { id: "p3", name: "جاسمين إن شقق فندقية", nameEn: "Jasmine Inn Hotel Apartments", city: "مدينة بدر", cityEn: "Badr City", type: "apartments", amenities: ["واي فاي", "مطبخ مجهز", "غسالة ملابس", "تنظيف أسبوعي"] },
-    { id: "p2", name: "فندق جاسمين إن الجديد", nameEn: "New Jasmine Inn Hotel", city: "مدينة بدر", cityEn: "Badr City", type: "hotel", amenities: ["واي فاي", "مطعم", "خدمة غرف", "حمام سباحة", "صالة رياضية"] },
+    { id: "p2", name: "فندق جاسمين إن", nameEn: "Jasmine Inn Hotel", city: "مدينة بدر", cityEn: "Badr City", type: "hotel", amenities: ["واي فاي", "مطعم", "خدمة غرف", "حمام سباحة", "صالة رياضية"] },
   ];
   const buildings: Building[] = [
     { id: "b1", propertyId: "p1", name: "A", floors: 3 },
