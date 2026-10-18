@@ -32,9 +32,10 @@ export function ExceptionDialog({ rooms, onClose, onOpen }: { rooms: { id: strin
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
-        <DialogHeader><DialogTitle>{t("فتح غرفة فاضية (استثناء)", "Open an empty room (exception)")}</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{t("فتح غرفة فاضية (تحتاج إذن)", "Open an empty room (needs approval)")}</DialogTitle></DialogHeader>
         <div className="space-y-3">
-          <Field label={t("كلمة سر المدير", "Manager's code")}><Input type="password" inputMode="numeric" autoFocus value={code} onChange={(e) => { setCode(e.target.value); setError(null); }} /></Field>
+          {/* Not a login: keep browsers and password managers from filling in a saved password. */}
+          <Field label={t("كلمة سر المدير", "Manager's code")}><Input type="password" inputMode="numeric" autoComplete="new-password" name="manager-approval-code" data-1p-ignore data-lpignore="true" data-form-type="other" autoFocus value={code} onChange={(e) => { setCode(e.target.value); setError(null); }} /></Field>
           {/* With one room there's nothing to choose: it is the room being opened. */}
           {rooms.length === 1 ? (
             <p className="text-sm">{t("الغرفة:", "Room:")} <b>{rooms[0].code}</b></p>

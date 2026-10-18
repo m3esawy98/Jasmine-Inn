@@ -268,7 +268,7 @@ function BookingWizard({ scenarioMode, fromRoomId }: { scenarioMode: boolean; fr
                     {opened(fixed.id) ? (
                       <p className="font-medium text-success">{t(`تم فتح ${fixed.code} باستثناء: ${exception!.reason}`, `${fixed.code} opened by exception: ${exception!.reason}`)}</p>
                     ) : (
-                      <Button variant="outline" size="sm" onClick={() => setAsking([fixed])}>{t("فتح غرفة فاضية (استثناء)", "Open an empty room (exception)")}</Button>
+                      <Button variant="outline" size="sm" onClick={() => setAsking([fixed])}>{t("فتح غرفة فاضية (تحتاج إذن)", "Open an empty room (needs approval)")}</Button>
                     )}
                   </div>
                 )}
@@ -305,7 +305,7 @@ function BookingWizard({ scenarioMode, fromRoomId }: { scenarioMode: boolean; fr
                   {roomOptions.some((x) => x.waitsFor.length > 0) && (
                     <div className="mb-3 space-y-2 rounded-lg border border-info/30 bg-info-soft p-3 text-sm">
                       <p>{t("تُملأ الغرف المشغولة جزئيًا أولًا؛ الغرف الفاضية تُفتح بعد امتلاء الغرف الحالية من نفس النوع.", "Partly filled rooms are filled first; empty rooms open once those of the same type are full.")}</p>
-                      <Button variant="outline" size="sm" onClick={() => setAsking(roomOptions.filter((x) => x.waitsFor.length > 0).map((x) => x.room))}>{t("فتح غرفة فاضية (استثناء)", "Open an empty room (exception)")}</Button>
+                      <Button variant="outline" size="sm" onClick={() => setAsking(roomOptions.filter((x) => x.waitsFor.length > 0).map((x) => x.room))}>{t("فتح غرفة فاضية (تحتاج إذن)", "Open an empty room (needs approval)")}</Button>
                     </div>
                   )}
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
