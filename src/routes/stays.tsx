@@ -64,11 +64,11 @@ function Stays() {
         subtitle={t(`اليوم ${DEMO_TODAY} · الإشغال الفعلي يبدأ عند تسجيل الدخول وينتهي عند تسجيل المغادرة.`, `Today ${DEMO_TODAY} · actual occupancy runs from check-in to check-out.`)}
       />
       <Tabs dir={s.lang === "ar" ? "rtl" : "ltr"} value={tab} onValueChange={(v) => { setTab(v); setSel(null); }}>
-        <TabsList>
-          <TabsTrigger value="arr" className="gap-1.5"><LogIn className="size-4" />{t("تسجيل الدخول", "Check-in")} ({num(confirmed.length)})</TabsTrigger>
-          <TabsTrigger value="in" className="gap-1.5"><BedDouble className="size-4" />{t("المقيمون حاليًا", "In-house")} ({num(inhouse.length)})</TabsTrigger>
-          <TabsTrigger value="out" className="gap-1.5"><LogOut className="size-4" />{t("تسجيل المغادرة", "Check-out")} ({num(leaving.length)})</TabsTrigger>
-          <TabsTrigger value="late" className={cn("gap-1.5", overstays.length > 0 && "text-destructive data-[state=active]:text-destructive")}><AlarmClock className="size-4" />{t("تجاوز موعد المغادرة", "Past departure date")} ({num(overstays.length)})</TabsTrigger>
+        <TabsList className="grid h-auto w-full grid-cols-2 justify-start gap-2 bg-transparent p-0 sm:grid-cols-[repeat(2,minmax(0,12rem))] lg:grid-cols-[repeat(4,minmax(0,12rem))]">
+          <StayTab value="arr" icon={LogIn} label={t("تسجيل الدخول", "Check-in")} count={num(confirmed.length)} />
+          <StayTab value="in" icon={BedDouble} label={t("المقيمون حاليًا", "In-house")} count={num(inhouse.length)} />
+          <StayTab value="out" icon={LogOut} label={t("تسجيل المغادرة", "Check-out")} count={num(leaving.length)} />
+          <StayTab value="late" icon={AlarmClock} label={t("تجاوز موعد المغادرة", "Past departure date")} count={num(overstays.length)} alert={overstays.length > 0} />
         </TabsList>
         <TabsContent value="arr">
           <Split groups={arrivals} sel={sel} setSel={setSel} date={(b) => b.start} empty={t(`لا يوجد وصول متوقع خلال ${num(WINDOW_DAYS)} أيام`, `No arrivals in the next ${WINDOW_DAYS} days`)}>
@@ -92,6 +92,26 @@ function Stays() {
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+/** One of the page's four lists as a large card: icon, name and how many it holds. `alert` marks overstays in red. */
+function StayTab({ value, icon: Icon, label, count, alert }: { value: string; icon: typeof LogIn; label: string; count: string; alert?: boolean }) {
+  return (
+    <TabsTrigger
+      value={value}
+      className={cn(
+        "h-auto justify-start gap-3 whitespace-normal rounded-xl border bg-card p-3 text-center text-foreground shadow-none data-[state=active]:border-primary data-[state=active]:bg-primary-soft data-[state=active]:shadow-none",
+        alert && "border-destructive/40 data-[state=active]:border-destructive data-[state=active]:bg-destructive-soft",
+      )}
+    >
+      <span className={cn("grid size-10 shrink-0 place-items-center rounded-lg bg-muted", alert ? "text-destructive" : "text-primary")}><Icon className="size-5" /></span>
+      {/* The icon sits at the card's start edge (right in Arabic); the name and count center in the rest. */}
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-medium leading-tight">{label}</span>
+        <span className={cn("block text-xl font-bold tabular-nums", alert && "text-destructive")}>{count}</span>
+      </span>
+    </TabsTrigger>
   );
 }
 
