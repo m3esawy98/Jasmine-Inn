@@ -434,10 +434,11 @@ function CheckOutPanel({ b }: { b: Booking }) {
             </p>
           )}
           <Button size="lg" variant="destructive" className="mt-3 w-full" disabled={!inspected || !dateOk || due !== 0 || !can(s.role, "stay.checkout")} onClick={() => {
-            if (run(actions.checkOut(b.id, early), t("تم تسجيل المغادرة وتسوية التأمين وإنشاء مهمة تنظيف", "Checked out; deposit settled; cleaning task created")) && b.scenario && getState().scenario.tourActive) {
-              actions.tour({ step: 6 });
-              navigate({ to: "/housekeeping" });
-            }
+            if (!run(actions.checkOut(b.id, early), t("تم تسجيل المغادرة وتسوية التأمين وإنشاء مهمة تنظيف", "Checked out; deposit settled; cleaning task created"))) return;
+            if (b.scenario && getState().scenario.tourActive) actions.tour({ step: 6 });
+            // Continue straight to the room's new cleaning task.
+            const task = getState().tasks.find((x) => x.source === b.code && x.status === "new");
+            navigate({ to: "/housekeeping", search: { task: task?.id } });
           }}><LogOut className="size-4" />{t("تأكيد المغادرة", "Confirm check-out")}</Button>
         </>
       ),

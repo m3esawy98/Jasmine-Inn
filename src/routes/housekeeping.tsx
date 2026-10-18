@@ -12,6 +12,8 @@ import { meta } from "@/lib/demo/meta";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/housekeeping")({
+  // `task`: opened with this task selected, e.g. the cleaning task a check-out just created.
+  validateSearch: (s: Record<string, unknown>): { task?: string } => (typeof s.task === "string" ? { task: s.task } : {}),
   head: () => meta("النظافة والصيانة", "مهام التنظيف والصيانة وفحص الجاهزية واعتماد عودة الوحدات للخدمة."),
   component: HK,
 });
@@ -23,7 +25,8 @@ function HK() {
   const scenarioCode = s.bookings.find((b) => b.id === s.scenario.bookingId)?.code;
   const tasks = s.tasks.filter((x) => inScope(s, s.rooms.find((r) => r.id === x.roomId)!.propertyId) && (filter === "all" || (filter === "open" ? x.status !== "approved" : x.status === "approved")))
     .sort((a, b) => (b.source === scenarioCode ? 1 : 0) - (a.source === scenarioCode ? 1 : 0));
-  const [sel, setSel] = useState<string | null>(() => s.tasks.find((x) => x.source === scenarioCode && x.status !== "approved")?.id ?? null);
+  const search = Route.useSearch();
+  const [sel, setSel] = useState<string | null>(() => search.task ?? s.tasks.find((x) => x.source === scenarioCode && x.status !== "approved")?.id ?? null);
   const cur = s.tasks.find((x) => x.id === sel) ?? tasks[0];
   return (
     <div>
