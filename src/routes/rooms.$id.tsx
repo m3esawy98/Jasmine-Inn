@@ -5,6 +5,9 @@ import { PageHeader, Pill, Section, StatusPill } from "@/components/stay/kit";
 import {
   activeStayOnBed,
   can,
+  DEMO_TODAY,
+  roomBookedUp,
+  roomFreeFrom,
   invoiceBalance,
   roomGenders,
   roomStatus,
@@ -12,6 +15,7 @@ import {
 } from "@/lib/demo/store";
 import type { RoomType } from "@/lib/demo/types";
 import { BOOKING_STATUS, HK_STATUS, ID_TYPE, UNIT_STATUS, useDate, useMoney, useT } from "@/lib/demo/ui";
+import { addDays } from "@/lib/demo/calc";
 import { meta } from "@/lib/demo/meta";
 import { cn } from "@/lib/utils";
 
@@ -39,6 +43,7 @@ function RoomDetail() {
   const prop = s.properties.find((p) => p.id === room.propertyId)!;
   const building = s.buildings.find((b) => b.id === room.buildingId)!;
   const genders = roomGenders(s, room.id);
+  const freeDay = roomFreeFrom(s, room.id);
   // In bed-number order, so the list matches the physical beds.
   const beds = s.beds.filter((b) => b.roomId === room.id);
 
@@ -51,18 +56,22 @@ function RoomDetail() {
           <>
             <StatusPill map={UNIT_STATUS} value={roomStatus(s, room.id)} />
             <StatusPill map={HK_STATUS} value={room.hk} />
+            {/* Hotel rooms and apartments house guests, not students. */}
             {genders.size === 1 &&
               (genders.has("female") ? (
-                <Pill tone="female">{t("طالبات", "Female")}</Pill>
+                <Pill tone="female">{prop.type === "student" ? t("طالبات", "Female") : t("نزيلة", "Female guest")}</Pill>
               ) : (
-                <Pill tone="info">{t("طلاب", "Male")}</Pill>
+                <Pill tone="info">{prop.type === "student" ? t("طلاب", "Male") : t("نزيل", "Male guest")}</Pill>
               ))}
             {can(s.role, "booking.create") &&
               (room.hk === "maintenance" ? (
                 <Button disabled title={t("الغرفة محجوبة للصيانة", "Blocked for maintenance")}><Plus className="size-4" />{t("حجز جديد", "New booking")} · {t("محجوبة للصيانة", "under maintenance")}</Button>
+              ) : roomBookedUp(s, room.id) ? (
+                <Button disabled><Plus className="size-4" />{t(`محجوزة حتى ${fmt(addDays(freeDay, -1))}`, `Booked until ${fmt(addDays(freeDay, -1))}`)}</Button>
               ) : (
+                // An occupied room books ahead from the day it frees up.
                 <Button asChild>
-                  <Link to="/bookings/new" search={{ room: room.id }}><Plus className="size-4" />{t("حجز جديد", "New booking")}</Link>
+                  <Link to="/bookings/new" search={{ room: room.id }}><Plus className="size-4" />{freeDay > DEMO_TODAY ? t(`حجز من ${fmt(freeDay)}`, `Book from ${fmt(freeDay)}`) : t("حجز جديد", "New booking")}</Link>
                 </Button>
               ))}
             <Button variant="outline" asChild>

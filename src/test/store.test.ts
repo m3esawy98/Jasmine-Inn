@@ -4,6 +4,7 @@ import {
   actions,
   activeStayOnBed,
   checkoutSettlement,
+  DEMO_TODAY,
   getState,
   inspectionChecklist,
   invoiceBalance,
@@ -11,7 +12,9 @@ import {
   kpis,
   PERIOD_START,
   roomGenders,
+  roomFreeFrom,
 } from "@/lib/demo/store";
+import { addDays } from "@/lib/demo/calc";
 import type { Booking, Gender, IdType, ItemCondition } from "@/lib/demo/types";
 
 // Scenario room A-204 is a quad: bed 1 is occupied (monthly, 2026-09-01 → 2027-01-31), beds 2-4 are free.
@@ -106,6 +109,15 @@ describe("availability", () => {
       planId: "pl-night",
     });
     expect(res.ok).toBe(false);
+  });
+
+  it("finds a room's first free day after the bookings chained on it", () => {
+    const bed = freeHotelBed();
+    const room = getState().beds.find((b) => b.id === bed)!.roomId;
+    expect(roomFreeFrom(getState(), room)).toBe(DEMO_TODAY);
+    book(bed, DEMO_TODAY, addDays(DEMO_TODAY, 3), "pl-night");
+    book(bed, addDays(DEMO_TODAY, 3), addDays(DEMO_TODAY, 5), "pl-night");
+    expect(roomFreeFrom(getState(), room)).toBe(addDays(DEMO_TODAY, 5));
   });
 
   it("books a hotel room only on the night rate for its size", () => {

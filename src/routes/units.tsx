@@ -114,7 +114,7 @@ function Units() {
                       <div className="flex flex-wrap items-center gap-1.5">
                         <StatusPill map={UNIT_STATUS} value={status} />
                         {girls && <Pill tone="female">{t("بنات فقط", "Female only")}</Pill>}
-                        {status === "full" && female && <Pill tone="female">{t("بنات", "Female")}</Pill>}
+                        {status === "full" && female && <Pill tone="female">{r.type === "hotel" || r.type === "apartment" ? t("نزيلة", "Female guest") : t("بنات", "Female")}</Pill>}
                       </div>
                       {upcoming.length > 0 && (
                         <p className="mt-1.5 text-xs font-medium text-info">

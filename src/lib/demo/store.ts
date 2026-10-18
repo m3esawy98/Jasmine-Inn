@@ -1,7 +1,7 @@
 import { useEffect, useReducer, useSyncExternalStore } from "react";
 import type { Booking, DemoState, Gender, Guest, InspectionItem, ItemCondition, NewGuest, PayMethod, Plan, Role, Room, RoomType, Task, TaskStatus } from "./types";
 import { createSeed, DEMO_TODAY, ROLE_USERS, STATE_VERSION, buildSchedule } from "./seed";
-import { addMonths, computeRent, freeFrom, overlaps, validRange } from "./calc";
+import { addDays, addMonths, computeRent, freeFrom, overlaps, validRange } from "./calc";
 
 const KEY = "stayflow-demo-state";
 let state: DemoState = createSeed();
@@ -172,6 +172,29 @@ export function planForRoom(room: Room) {
   if (room.type === "hotel") return room.sleeps === 1 ? "pl-night-single" : "pl-night";
   return room.type === "apartment" ? "pl-week" : "pl-month";
 }
+/** How far ahead a room can be booked from its page; beyond this it counts as booked up. */
+export const BOOK_AHEAD_DAYS = 90;
+/** The first day, from today, that some bed in the room has no booking on it: today for a free bed,
+ *  otherwise the day after the bookings chained on it end. */
+export function roomFreeFrom(s: DemoState, roomId: string) {
+  const days = s.beds
+    .filter((b) => b.roomId === roomId)
+    .map((bed) => {
+      const taken = s.bookings.filter((b) => b.bedId === bed.id && ACTIVE_BOOKING.includes(b.status));
+      let d = DEMO_TODAY;
+      for (let moved = true; moved; ) {
+        moved = false;
+        for (const b of taken) {
+          const until = freeFrom(planPeriod(s, b.planId), b.end);
+          if (b.start <= d && d < until) { d = until; moved = true; }
+        }
+      }
+      return d;
+    });
+  return days.length ? days.reduce((a, b) => (a < b ? a : b)) : DEMO_TODAY;
+}
+/** Whether a room is booked up beyond the book-ahead window, so a new booking can't start from its page. */
+export const roomBookedUp = (s: DemoState, roomId: string) => roomFreeFrom(s, roomId) > addDays(DEMO_TODAY, BOOK_AHEAD_DAYS);
 /** Why a room can't take this booking, or undefined when it has a bed for it. */
 export function roomUnavailableReason(s: DemoState, roomId: string, start: string, end: string, planId: string, gender: Gender) {
   const room = s.rooms.find((r) => r.id === roomId);

@@ -7,8 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PageHeader, Pill, Section } from "@/components/stay/kit";
 import { GuestIdFields } from "@/components/stay/GuestIdFields";
-import { actions, activeStayOnBed, bedConflict, bookableBeds, can, DEMO_TODAY, getState, planForRoom, roomGenders, roomUnavailableReason, useDemo } from "@/lib/demo/store";
-import { addDays, computeRent, validRange } from "@/lib/demo/calc";
+import { actions, activeStayOnBed, bedConflict, bookableBeds, can, DEMO_TODAY, getState, planForRoom, roomFreeFrom, roomGenders, roomUnavailableReason, useDemo } from "@/lib/demo/store";
+import { addDays, addMonths, computeRent, validRange } from "@/lib/demo/calc";
 import { useMoney, useT } from "@/lib/demo/ui";
 import { meta } from "@/lib/demo/meta";
 import type { Gender, IdType, RoomType } from "@/lib/demo/types";
@@ -70,10 +70,15 @@ function BookingWizard({ scenarioMode, fromRoomId }: { scenarioMode: boolean; fr
   const [roomId, setRoom] = useState<string | null>(scenarioMode ? "r-A-204" : (fromRoom?.id ?? null));
   const [bedId, setBed] = useState(scenarioMode ? "r-A-204-2" : "");
   const [planId, setPlan] = useState(fromPlan?.id ?? "pl-month");
-  // Nights and weeks start today; monthly stays keep the usual term dates.
+  // From a room, start on its first free day (today unless it's occupied): nights run 3 days, weeks 2 weeks,
+  // and monthly stays keep the usual term unless the room frees up later, then run 4 months.
+  const freeDay = fromRoom ? roomFreeFrom(s, fromRoom.id) : DEMO_TODAY;
   const shortStay = fromPlan && (fromPlan.period === "daily" || fromPlan.period === "weekly");
-  const [start, setStart] = useState(shortStay ? DEMO_TODAY : "2026-11-01");
-  const [end, setEnd] = useState(shortStay ? addDays(DEMO_TODAY, fromPlan.period === "daily" ? 3 : 14) : "2027-02-28");
+  const termStart = freeDay > "2026-11-01" ? freeDay : "2026-11-01";
+  const [start, setStart] = useState(shortStay ? freeDay : termStart);
+  const [end, setEnd] = useState(
+    shortStay ? addDays(freeDay, fromPlan.period === "daily" ? 3 : 14) : termStart === "2026-11-01" ? "2027-02-28" : addDays(addMonths(termStart, 4), -1),
+  );
   const [g, setG] = useState<{ name: string; phone: string; email: string; idType: IdType; idNumber: string; nationality: string; org: string; gender: Gender | "" }>(
     scenarioMode
       ? { name: "عمر حسن", phone: "01012345678", email: "omar.hassan@example.com", idType: "national_id", idNumber: "30405120101234", nationality: "", org: "جامعة القاهرة", gender: "male" }
