@@ -131,7 +131,7 @@ function Split({ groups, fresh, sel, setSel, date, empty, children }: { groups: 
                 {g.items.map((b) => (
                   <li key={b.id}>
                     <button data-id={b.id} onClick={() => setSel(b.id)} className={cn("flex w-full items-center justify-between gap-2 rounded-lg px-2 py-2.5 text-start text-sm", current?.id === b.id && "bg-primary-soft")}>
-                      <span><span className="font-medium">{guestName(s, b.guestId)}</span>{b.scenario && <Pill tone="primary" className="ms-2">{t("السيناريو", "Scenario")}</Pill>}{b.id === fresh && <Pill tone="success" className="ms-2">{t("تم الدخول الآن", "Just checked in")}</Pill>}{b.status === "checked_in" && !hasCard(s, b.id) && <Pill tone="warning" className="ms-2">{t("بدون كارت", "No card")}</Pill>}<span className="block text-xs text-muted-foreground">{bedLabel(s, b.bedId)}</span></span>
+                      <span><span className="font-medium">{guestName(s, b.guestId)}</span>{b.scenario && <Pill tone="primary" className="ms-2">{t("السيناريو", "Scenario")}</Pill>}{b.id === fresh && <Pill tone="success" className="ms-2">{t("تم تسجيل الدخول", "Checked in")}</Pill>}{b.status === "checked_in" && !hasCard(s, b.id) && <Pill tone="warning" className="ms-2">{t("بدون كارت", "No card")}</Pill>}<span className="block text-xs text-muted-foreground">{bedLabel(s, b.bedId)}</span></span>
                       <span className="text-xs text-muted-foreground">{fmt(date(b))}</span>
                     </button>
                   </li>
