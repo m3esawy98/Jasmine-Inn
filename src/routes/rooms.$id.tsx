@@ -45,7 +45,7 @@ function RoomDetail() {
     <div>
       <PageHeader
         title={`${t("الغرفة", "Room")} ${room.code}`}
-        subtitle={`${t(prop.name, prop.nameEn)} · ${t("مبنى", "Building")} ${building.name} · ${t("الدور", "Floor")} ${room.floor} · ${t(...ROOM_TYPE[room.type])}`}
+        subtitle={`${t(prop.name, prop.nameEn)} · ${t("مبنى", "Building")} ${building.name} · ${t("الدور", "Floor")} ${room.floor} · ${t(...ROOM_TYPE[room.type])} · ${t(room.sleeps === 1 ? "يسع فردًا واحدًا" : room.sleeps === 2 ? "يسع فردين" : `يسع ${room.sleeps} أفراد`, `Sleeps ${room.sleeps}`)}`}
         actions={
           <>
             <StatusPill map={UNIT_STATUS} value={roomStatus(s, room.id)} />
@@ -57,7 +57,7 @@ function RoomDetail() {
                 <Pill tone="info">{t("طلاب", "Male")}</Pill>
               ))}
             <Button variant="outline" asChild>
-              <Link to="/units" search={{ q: undefined, pid: room.propertyId }}>
+              <Link to="/units" search={{ q: undefined, pid: room.propertyId, from: undefined }}>
                 <ArrowRight className="size-4 ltr:rotate-180" />
                 {t("الغرف والأسرة", "Rooms & beds")}
               </Link>

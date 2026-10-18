@@ -35,7 +35,7 @@ function Properties() {
               <p className="flex items-center gap-1 text-sm text-muted-foreground"><MapPin className="size-3.5" />{t(p.city, p.cityEn)}</p>
               <div className="mt-4 grid grid-cols-3 gap-2 text-center text-sm">
                 <div className="rounded-lg bg-muted/50 p-2"><p className="font-bold">{num(rooms.length)}</p><p className="text-xs text-muted-foreground">{t("وحدات", "Units")}</p></div>
-                <div className="rounded-lg bg-muted/50 p-2"><p className="font-bold">{num(beds.length)}</p><p className="text-xs text-muted-foreground">{t("السعة", "Capacity")}</p></div>
+                <div className="rounded-lg bg-muted/50 p-2"><p className="font-bold">{num(rooms.reduce((n, r) => n + r.sleeps, 0))}</p><p className="text-xs text-muted-foreground">{t("السعة (أفراد)", "Sleeps")}</p></div>
                 <div className="rounded-lg bg-muted/50 p-2"><p className="font-bold">{num(rooms.filter((r) => r.hk === "maintenance").length)}</p><p className="text-xs text-muted-foreground">{t("صيانة", "Maint.")}</p></div>
               </div>
               <div className="mt-4"><div className="mb-1 flex justify-between text-xs"><span>{t("الإشغال الفعلي", "Occupancy")}</span><b>{num(pct)}٪</b></div><div className="h-2 rounded-full bg-muted"><div className="h-2 rounded-full bg-primary" style={{ width: `${pct}%` }} /></div></div>
@@ -43,7 +43,7 @@ function Properties() {
               <div className="mt-1 flex flex-wrap gap-2">{s.buildings.filter((b) => b.propertyId === p.id).map((b) => <Pill key={b.id}>{t("مبنى", "Bldg")} {b.name} · {num(b.floors)} {t("أدوار", "floors")}</Pill>)}</div>
               <p className="mt-3 text-xs font-medium text-muted-foreground">{t("المرافق", "Amenities")}</p>
               <p className="mt-1 text-sm">{p.amenities.join(" · ")}</p>
-              <Link to="/units" search={{ q: undefined, pid: p.id }} className="mt-4 inline-block text-sm font-medium text-primary">{t("عرض توزيع الغرف ←", "View room map →")}</Link>
+              <Link to="/units" search={{ q: undefined, pid: p.id, from: "properties" }} className="mt-4 inline-block text-sm font-medium text-primary">{t("عرض توزيع الغرف ←", "View room map →")}</Link>
             </Section>
           );
         })}

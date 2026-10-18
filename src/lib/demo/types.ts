@@ -33,6 +33,8 @@ export interface Room {
   code: string;
   floor: number;
   type: RoomType;
+  /** People the unit sleeps; a hotel room or apartment is booked whole, so it can exceed its bookable beds. */
+  sleeps: number;
   hk: HkStatus;
   amenities: string[];
 }

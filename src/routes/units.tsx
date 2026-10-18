@@ -1,6 +1,6 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { BedDouble, Lock } from "lucide-react";
+import { ArrowRight, BedDouble, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -9,10 +9,19 @@ import { PageHeader, Pill, Section, StatusPill, run } from "@/components/stay/ki
 import { actions, activeStayOnBed, can, DEMO_TODAY, guestName, roomGenders, roomStatus, upcomingBookingOnBed, useDemo } from "@/lib/demo/store";
 import { UNIT_STATUS, useNum, useT } from "@/lib/demo/ui";
 import { meta } from "@/lib/demo/meta";
+import type { RoomType } from "@/lib/demo/types";
 import { cn } from "@/lib/utils";
 
+/** Student rooms by how many beds they hold; hotel rooms and apartments are a single type each, so they get no filter. */
+const STUDENT_ROOM_TYPE: [RoomType, string, string][] = [["single", "فردي", "Single"], ["double", "ثنائي", "Double"], ["quad", "رباعي", "Quad"]];
+
 export const Route = createFileRoute("/units")({
-  validateSearch: (s: Record<string, unknown>) => ({ q: typeof s.q === "string" ? s.q : undefined, pid: typeof s.pid === "string" ? s.pid : undefined }),
+  // `from`: set by the properties page so this page offers a way back to it.
+  validateSearch: (s: Record<string, unknown>) => ({
+    q: typeof s.q === "string" ? s.q : undefined,
+    pid: typeof s.pid === "string" ? s.pid : undefined,
+    from: s.from === "properties" ? ("properties" as const) : undefined,
+  }),
   head: () => meta("الغرف والشقق والأسرة", "عرض مرئي لتوزيع الغرف والأسرة وحالتها وحجب الوحدات للصيانة."),
   component: Units,
 });
@@ -33,18 +42,30 @@ function Units() {
   const [pid, setPid] = useState(s.properties.some((p) => p.id === search.pid) ? search.pid! : s.propertyFilter === "all" ? "p1" : s.propertyFilter);
   const [q, setQ] = useState(search.q ?? "");
   const [st, setSt] = useState("all");
+  const [type, setType] = useState("all");
+  const isStudent = s.properties.find((p) => p.id === pid)?.type === "student";
   const [block, setBlock] = useState<string | null>(null);
   const [reason, setReason] = useState("");
-  const rooms = s.rooms.filter((r) => r.propertyId === pid && (!q || r.code.includes(q.toUpperCase())) && (st === "all" || roomStatus(s, r.id) === st));
+  const rooms = s.rooms.filter((r) => r.propertyId === pid && (!q || r.code.includes(q.toUpperCase())) && (st === "all" || roomStatus(s, r.id) === st) && (type === "all" || r.type === type));
   const buildings = s.buildings.filter((b) => b.propertyId === pid);
   return (
     <div>
-      <PageHeader title={t("الغرف والشقق والأسرة", "Rooms, apartments & beds")} subtitle={t("حالة كل سرير محسوبة من الإقامات الفعلية واعتماد الجاهزية.", "Bed status derives from real stays and readiness.")} />
+      <PageHeader title={t("الغرف والشقق والأسرة", "Rooms, apartments & beds")} subtitle={t("حالة كل سرير محسوبة من الإقامات الفعلية واعتماد الجاهزية.", "Bed status derives from real stays and readiness.")} actions={search.from === "properties" && (
+        <Button variant="outline" asChild>
+          <Link to="/properties">
+            <ArrowRight className="size-4 ltr:rotate-180" />
+            {t("المنشآت والمباني", "Properties & buildings")}
+          </Link>
+        </Button>
+      )} />
       <Section>
         <div className="mb-4 flex flex-wrap gap-2">
-          <Select value={pid} onValueChange={setPid}><SelectTrigger className="w-56"><SelectValue /></SelectTrigger><SelectContent>{s.properties.map((p) => <SelectItem key={p.id} value={p.id}>{t(p.name, p.nameEn)}</SelectItem>)}</SelectContent></Select>
+          <Select value={pid} onValueChange={(v) => { setPid(v); setType("all"); }}><SelectTrigger className="w-56"><SelectValue /></SelectTrigger><SelectContent>{s.properties.map((p) => <SelectItem key={p.id} value={p.id}>{t(p.name, p.nameEn)}</SelectItem>)}</SelectContent></Select>
           <Input className="w-40" placeholder={t("رقم الغرفة", "Room code")} value={q} onChange={(e) => setQ(e.target.value)} />
           <Select value={st} onValueChange={setSt}><SelectTrigger className="w-48"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">{t("كل الحالات", "All")}</SelectItem>{Object.entries(UNIT_STATUS).map(([k, v]) => <SelectItem key={k} value={k}>{t(v[0], v[1])}</SelectItem>)}</SelectContent></Select>
+          {isStudent && (
+            <Select value={type} onValueChange={setType}><SelectTrigger className="w-40"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">{t("كل الأنواع", "All types")}</SelectItem>{STUDENT_ROOM_TYPE.map(([k, ar, en]) => <SelectItem key={k} value={k}>{t(ar, en)}</SelectItem>)}</SelectContent></Select>
+          )}
         </div>
         {buildings.map((b) => {
           const br = rooms.filter((r) => r.buildingId === b.id);

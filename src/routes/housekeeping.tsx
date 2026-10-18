@@ -76,7 +76,7 @@ function TaskPanel({ task }: { task: Task }) {
             if (run(actions.taskStep(task.id, st.to, { assignee: who }), st.to === "approved" ? t(`أصبحت ${room.code} متاحة`, `${room.code} is now available`) : t("تم التحديث", "Updated")) && st.to === "approved") {
               if (getState().scenario.tourActive) actions.tour({ step: 7 });
               // Show the room back in service on the room map.
-              navigate({ to: "/units", search: { q: room.code, pid: room.propertyId } });
+              navigate({ to: "/units", search: { q: room.code, pid: room.propertyId, from: undefined } });
             }
           }}>{t("تنفيذ", "Do")}</Button>}
         </li>); })}</ol>

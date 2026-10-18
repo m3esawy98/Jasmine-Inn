@@ -19,7 +19,7 @@ import type {
 import { addDays, addMonths, computeRent } from "./calc";
 
 export const DEMO_TODAY = "2026-11-01";
-export const STATE_VERSION = 8;
+export const STATE_VERSION = 9;
 
 function rng(seed: number) {
   let s = seed;
@@ -67,8 +67,9 @@ export function createSeed(): DemoState {
     const id = `r-${code}`;
     const amen =
       type === "apartment" ? ["غرفتا نوم", "مطبخ", "صالة"] : type === "hotel" ? ["تكييف", "تلفاز", "ميني بار"] : ["تكييف", "مكاتب مذاكرة", "خزائن"];
-    rooms.push({ id, propertyId: b.propertyId, buildingId: b.id, code, floor, type, hk: "ready", amenities: amen });
     const n = type === "quad" ? 4 : type === "double" ? 2 : 1;
+    const sleeps = type === "apartment" ? 4 : type === "hotel" ? 2 : n;
+    rooms.push({ id, propertyId: b.propertyId, buildingId: b.id, code, floor, type, sleeps, hk: "ready", amenities: amen });
     for (let i = 1; i <= n; i++) beds.push({ id: `${id}-${i}`, roomId: id, label: n === 1 ? (type === "single" ? "سرير 1" : "الوحدة") : `سرير ${i}` });
   };
   for (const b of buildings) {
