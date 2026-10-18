@@ -19,7 +19,7 @@ import type {
 import { addDays, addMonths, computeRent } from "./calc";
 
 export const DEMO_TODAY = "2026-11-01";
-export const STATE_VERSION = 11;
+export const STATE_VERSION = 12;
 
 function rng(seed: number) {
   let s = seed;
@@ -50,8 +50,8 @@ export const ROLE_USERS: Record<string, string> = {
 export function createSeed(): DemoState {
   const r = rng(42);
   const properties: Property[] = [
-    { id: "p1", name: "مباني الإسكان الجامعي", nameEn: "University Housing Buildings", city: "مدينة بدر", cityEn: "Badr City", type: "student", amenities: ["واي فاي", "مكتبة مذاكرة", "مطبخ مشترك", "مغسلة", "أمن 24 ساعة"] },
-    { id: "p3", name: "الشقق الفندقية", nameEn: "Hotel Apartments", city: "مدينة بدر", cityEn: "Badr City", type: "apartments", amenities: ["واي فاي", "مطبخ مجهز", "غسالة ملابس", "تنظيف أسبوعي"] },
+    { id: "p1", name: "جاسمين إسكان جامعي", nameEn: "Jasmine University Housing", city: "مدينة بدر", cityEn: "Badr City", type: "student", amenities: ["واي فاي", "مكتبة مذاكرة", "مطبخ مشترك", "مغسلة", "أمن 24 ساعة"] },
+    { id: "p3", name: "جاسمين شقق فندقية", nameEn: "Jasmine Hotel Apartments", city: "مدينة بدر", cityEn: "Badr City", type: "apartments", amenities: ["واي فاي", "مطبخ مجهز", "غسالة ملابس", "تنظيف أسبوعي"] },
     { id: "p2", name: "فندق جاسمين إن الجديد", nameEn: "New Jasmine Inn Hotel", city: "مدينة بدر", cityEn: "Badr City", type: "hotel", amenities: ["واي فاي", "مطعم", "خدمة غرف", "حمام سباحة", "صالة رياضية"] },
   ];
   const buildings: Building[] = [
@@ -323,8 +323,8 @@ export function createSeed(): DemoState {
   const seedActs: [string, string, string][] = [
     ["2026-10-31T17:40:00", "reservations", "تأكيد 3 حجوزات فندقية لعطلة نهاية الأسبوع"],
     ["2026-10-31T15:10:00", "accountant", "تسجيل تحصيلات يومية بقيمة 48,600 ج.م."],
-    ["2026-10-31T12:05:00", "housekeeping", "اعتماد جاهزية 4 غرف في الشقق الفندقية"],
-    ["2026-10-30T19:20:00", "manager", "حجب غرفتين للصيانة في مباني الإسكان الجامعي"],
+    ["2026-10-31T12:05:00", "housekeeping", "اعتماد جاهزية 4 غرف في جاسمين شقق فندقية"],
+    ["2026-10-30T19:20:00", "manager", "حجب غرفتين للصيانة في جاسمين إسكان جامعي"],
   ];
   seedActs.forEach(([at, role, action], i) =>
     activities.push({ id: `a-seed-${i}`, at, user: ROLE_USERS[role], role: role as Activity["role"], action, ref: "" }),
