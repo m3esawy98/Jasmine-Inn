@@ -326,7 +326,25 @@ function CheckInPanel({ b, onCheckedIn, onDone }: { b: Booking; onCheckedIn: () 
         : t("يُكوَّد بعد تسجيل الدخول فقط؛ لا يعمل أي كارت بدون حجز مؤكد وإقامة مسجلة على النظام.", "Encoded only after check-in: no card works without a confirmed booking and a recorded stay."),
       body: checkedIn ? (
         // The tour moves on to the invoice once the card is handed over.
-        <KeyCardPanel b={b} onEncoded={() => { if (b.scenario && getState().scenario.tourActive) actions.tour({ step: 4 }); }} />
+        <KeyCardPanel
+          b={b}
+          onEncoded={() => { if (b.scenario && getState().scenario.tourActive) actions.tour({ step: 4 }); }}
+          extra={
+            // Leaving without a card is allowed (the encoder may be down), but only with a written reason.
+            !card &&
+            (skipping ? (
+              <div className="mt-2 space-y-2 rounded-lg border border-warning/30 bg-warning-soft p-3">
+                <Input autoFocus placeholder={t("سبب المتابعة بدون كارت، مثل: جهاز التكويد عطلان", "Why, e.g. the encoder is down")} value={skipReason} onChange={(e) => setSkipReason(e.target.value)} />
+                <div className="flex gap-2">
+                  <Button disabled={!skipReason.trim()} onClick={() => { if (run(actions.skipCard(b.id, skipReason), t("سُجّل الدخول بدون كارت؛ يظهر «بدون كارت» في المقيمين", "Checked in without a card; marked “No card” in-house"))) onDone(); }}>{t("متابعة بدون كارت", "Continue without a card")}</Button>
+                  <Button variant="ghost" onClick={() => { setSkipping(false); setSkipReason(""); }}>{t("إلغاء", "Cancel")}</Button>
+                </div>
+              </div>
+            ) : (
+              <Button className="mt-2 w-full" variant="outline" onClick={() => setSkipping(true)}>{t("متابعة بدون كارت", "Continue without a card")}</Button>
+            ))
+          }
+        />
       ) : (
         <Button className="w-full" variant="outline" disabled><Nfc className="size-4" />{t("تكويد كارت الغرفة", "Encode the room card")}</Button>
       ),
@@ -336,21 +354,7 @@ function CheckInPanel({ b, onCheckedIn, onDone }: { b: Booking; onCheckedIn: () 
     <Section title={t("تسجيل الدخول", "Check-in")}>
       <GuestHeader b={b} />
       <Steps steps={steps} />
-      {checkedIn &&
-        (card ? (
-          <Button className="mt-3 w-full" onClick={onDone}>{t("تم تسجيل الدخول — الذهاب إلى صفحة المقيمين", "Checked in — go to in-house")}</Button>
-        ) : skipping ? (
-          // Leaving without a card is allowed (the encoder may be down), but only with a written reason.
-          <div className="mt-3 space-y-2 rounded-lg border border-warning/30 bg-warning-soft p-3">
-            <Input autoFocus placeholder={t("سبب المتابعة بدون كارت، مثل: جهاز التكويد عطلان", "Why, e.g. the encoder is down")} value={skipReason} onChange={(e) => setSkipReason(e.target.value)} />
-            <div className="flex gap-2">
-              <Button disabled={!skipReason.trim()} onClick={() => { if (run(actions.skipCard(b.id, skipReason), t("سُجّل الدخول بدون كارت؛ يظهر «بدون كارت» في المقيمين", "Checked in without a card; marked “No card” in-house"))) onDone(); }}>{t("متابعة بدون كارت", "Continue without a card")}</Button>
-              <Button variant="ghost" onClick={() => { setSkipping(false); setSkipReason(""); }}>{t("إلغاء", "Cancel")}</Button>
-            </div>
-          </div>
-        ) : (
-          <Button className="mt-3 w-full" variant="outline" onClick={() => setSkipping(true)}>{t("متابعة بدون كارت", "Continue without a card")}</Button>
-        ))}
+      {checkedIn && card && <Button className="mt-3 w-full" onClick={onDone}>{t("تم تسجيل الدخول — الذهاب إلى صفحة المقيمين", "Checked in — go to in-house")}</Button>}
     </Section>
   );
 }

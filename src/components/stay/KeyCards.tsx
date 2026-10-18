@@ -18,7 +18,7 @@ export const CARD_STATE: Record<ReturnType<typeof cardState>, [string, string, s
 };
 
 /** A guest's room cards: encode one (only for a checked-in stay), add a second, or replace a lost one. */
-export function KeyCardPanel({ b, onEncoded }: { b: Booking; onEncoded?: () => void }) {
+export function KeyCardPanel({ b, onEncoded, extra }: { b: Booking; onEncoded?: () => void; extra?: React.ReactNode }) {
   const s = useDemo();
   const t = useT();
   const fmt = useDate();
@@ -86,6 +86,7 @@ export function KeyCardPanel({ b, onEncoded }: { b: Booking; onEncoded?: () => v
               </Button>
             )
           )}
+          {extra}
         </>
       )}
     </div>
