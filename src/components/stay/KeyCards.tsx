@@ -2,7 +2,7 @@ import { useState } from "react";
 import { KeyRound, Loader2, Nfc } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Pill, run } from "@/components/stay/kit";
+import { Gate, Pill, run } from "@/components/stay/kit";
 import { actions, bookingCards, can, cardBlocker, cardState, MAX_CARDS, useDemo } from "@/lib/demo/store";
 import type { Booking, KeyCard } from "@/lib/demo/types";
 import { useDate, useT } from "@/lib/demo/ui";
@@ -81,9 +81,9 @@ export function KeyCardPanel({ b, onEncoded, extra }: { b: Booking; onEncoded?: 
             <p className="mt-3 text-xs text-muted-foreground">{blocked}</p>
           ) : (
             live.length < MAX_CARDS && (
-              <Button className="mt-3 w-full" variant={live.length ? "outline" : "default"} disabled={!allowed} onClick={() => encode()}>
+              <Gate perm="stay.checkin" block><Button className="mt-3 w-full" variant={live.length ? "outline" : "default"} disabled={!allowed} onClick={() => encode()}>
                 <Nfc className="size-4" />{live.length ? t("تكويد كارت إضافي", "Encode a second card") : t("تكويد كارت الغرفة", "Encode the room card")}
-              </Button>
+              </Button></Gate>
             )
           )}
           {extra}

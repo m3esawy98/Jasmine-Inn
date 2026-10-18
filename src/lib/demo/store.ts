@@ -84,6 +84,42 @@ export const PERMS: Record<Role, Perm[]> = {
   auditor: [],
 };
 export const can = (role: Role, p: Perm) => PERMS[role].includes(p);
+/** Roles that hold a permission (the executive holds all), for "needs …" hints on locked buttons. */
+export const rolesWith = (p: Perm) => (Object.keys(PERMS) as Role[]).filter((r) => r !== "exec" && PERMS[r].includes(p));
+
+/** Pages each role works in; the rest are hidden from its menu and refused by link. */
+export const PAGES = ["/", "/properties", "/units", "/bookings/new", "/bookings", "/stays", "/guests", "/contracts", "/finance", "/housekeeping", "/reports", "/users", "/settings"] as const;
+export const ROLE_PAGES: Record<Role, readonly string[] | "all"> = {
+  exec: "all",
+  manager: "all",
+  // Reviews records but changes nothing, so the pages that exist to carry out work (new booking, check-in
+  // and check-out, housekeeping tasks) are left out.
+  auditor: ["/", "/properties", "/units", "/bookings", "/guests", "/contracts", "/finance", "/reports", "/users", "/settings"],
+  frontdesk: ["/", "/units", "/bookings/new", "/bookings", "/stays", "/guests"],
+  reservations: ["/", "/units", "/bookings/new", "/bookings", "/guests", "/contracts"],
+  accountant: ["/", "/bookings", "/contracts", "/finance", "/reports"],
+  // Check-out is where housekeeping records the room inspection.
+  housekeeping: ["/units", "/housekeeping", "/stays"],
+};
+/** Where each role lands when it signs in (or switches to it in the demo). */
+export const ROLE_HOME: Record<Role, string> = {
+  exec: "/",
+  manager: "/",
+  auditor: "/",
+  frontdesk: "/stays",
+  reservations: "/bookings",
+  accountant: "/finance",
+  housekeeping: "/housekeeping",
+};
+/** Whether a role may open a path: a detail page belongs to its list's section (a room to rooms). */
+export function canSee(role: Role, path: string) {
+  const pages = ROLE_PAGES[role];
+  if (pages === "all") return true;
+  const p = path.startsWith("/rooms/") ? "/units" : path;
+  const section = PAGES.filter((x) => (x === "/" ? p === "/" : p === x || p.startsWith(`${x}/`))).sort((a, b) => b.length - a.length)[0];
+  return !section || pages.includes(section);
+}
+export const isReadOnly = (role: Role) => PERMS[role].length === 0;
 
 type Result<T = undefined> = { ok: true; data?: T } | { ok: false; error: string };
 const deny = (): Result<never> => ({ ok: false, error: "صلاحية غير متاحة للدور الحالي (محاكاة صلاحيات)" });

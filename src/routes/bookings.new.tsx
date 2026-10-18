@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { PageHeader, Pill, Section } from "@/components/stay/kit";
+import { Gate, PageHeader, Pill, Section } from "@/components/stay/kit";
 import { GuestIdFields } from "@/components/stay/GuestIdFields";
 import { ExceptionDialog, type RoomException } from "@/components/stay/ExceptionDialog";
 import { actions, activeStayOnBed, bedConflict, bookableBeds, can, DEMO_TODAY, fillFirstRooms, getState, planForRoom, roomFreeFrom, roomGenders, roomPartlyTaken, roomUnavailableReason, useDemo } from "@/lib/demo/store";
@@ -397,7 +397,7 @@ function BookingWizard({ scenarioMode, fromRoomId }: { scenarioMode: boolean; fr
                   <p>{t("١. يُراجَع الحجز ويُؤكَّد ← يُنشأ العقد والفاتورة.", "1. The booking is reviewed and confirmed → contract and invoice are created.")}</p>
                   <p>{t("٢. يوم الوصول: استلام المستندات وتحصيل الدفعة الأولى والتأمين، ثم التسكين.", "2. Arrival day: collect documents, the first installment and deposit, then check in.")}</p>
                 </div>
-                <Button className="w-full" size="lg" onClick={save} disabled={!allowed || !!mine || !ready.every(Boolean)}>{t("حفظ الحجز (قيد المراجعة)", "Save booking (under review)")}</Button>
+                <Gate perm="booking.create" block><Button className="w-full" size="lg" onClick={save} disabled={!allowed || !!mine || !ready.every(Boolean)}>{t("حفظ الحجز (قيد المراجعة)", "Save booking (under review)")}</Button></Gate>
               </div>
             )}
 

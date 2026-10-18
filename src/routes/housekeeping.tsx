@@ -4,7 +4,7 @@ import { Brush, CheckCircle2, ClipboardCheck, Play, ShieldCheck, UserPlus, Wrenc
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { PageHeader, Pill, Section, StatusPill, run } from "@/components/stay/kit";
+import { Gate, PageHeader, Pill, Section, StatusPill, run } from "@/components/stay/kit";
 import { actions, can, getState, inScope, useDemo } from "@/lib/demo/store";
 import type { Task } from "@/lib/demo/types";
 import { HK_STATUS, TASK_STATUS, useDate, useT } from "@/lib/demo/ui";
@@ -75,18 +75,18 @@ function TaskPanel({ task }: { task: Task }) {
           <st.icon className={cn("size-4", done ? "text-success" : "text-primary")} />
           <span className="flex-1 text-sm font-medium">{i + 1}. {st.label}{st.to === "assigned" && task.assignee && ` — ${task.assignee}`}</span>
           {curStep && st.to === "assigned" && <Select value={who} onValueChange={setWho}><SelectTrigger className="h-8 w-44"><SelectValue /></SelectTrigger><SelectContent>{s.staff.map((x) => <SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent></Select>}
-          {curStep && <Button size="sm" disabled={!st.perm} onClick={() => {
+          {curStep && <Gate perm={st.to === "approved" ? "task.approve" : "task.update"}><Button size="sm" disabled={!st.perm} onClick={() => {
             if (run(actions.taskStep(task.id, st.to, { assignee: who }), st.to === "approved" ? t(`أصبحت ${room.code} متاحة`, `${room.code} is now available`) : t("تم التحديث", "Updated")) && st.to === "approved") {
               if (getState().scenario.tourActive) actions.tour({ step: 7 });
               // Show the room back in service on the room map.
               navigate({ to: "/units", search: { q: room.code, pid: room.propertyId, from: undefined } });
             }
-          }}>{t("تنفيذ", "Do")}</Button>}
+          }}>{t("تنفيذ", "Do")}</Button></Gate>}
         </li>); })}</ol>
       <div className="mt-5">
         <p className="mb-2 text-sm font-medium">{t("ملاحظات الفحص", "Inspection notes")}</p>
         <ul className="mb-2 space-y-1 text-sm">{task.notes.map((n, i) => <li key={i} className="rounded-md bg-muted/50 p-2">{n.text}<span className="block text-xs text-muted-foreground">{n.user} · {fmt(n.at, true)}</span></li>)}</ul>
-        <div className="flex gap-2"><Input value={note} onChange={(e) => setNote(e.target.value)} placeholder={t("مثال: تم تغيير المفارش وفحص التكييف", "e.g. linens changed, AC checked")} /><Button variant="outline" disabled={!upd} onClick={() => { if (run(actions.addTaskNote(task.id, note), t("أضيفت الملاحظة", "Note added"))) setNote(""); }}>{t("إضافة", "Add")}</Button></div>
+        <div className="flex gap-2"><Input value={note} onChange={(e) => setNote(e.target.value)} placeholder={t("مثال: تم تغيير المفارش وفحص التكييف", "e.g. linens changed, AC checked")} /><Gate perm="task.update"><Button variant="outline" disabled={!upd} onClick={() => { if (run(actions.addTaskNote(task.id, note), t("أضيفت الملاحظة", "Note added"))) setNote(""); }}>{t("إضافة", "Add")}</Button></Gate></div>
       </div>
     </Section>
   );

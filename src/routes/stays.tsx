@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList } from "@/components/ui/tabs";
-import { CARD_TABS, CardTab, PageHeader, Pill, Section, run } from "@/components/stay/kit";
+import { CARD_TABS, CardTab, Gate, PageHeader, Pill, Section, run } from "@/components/stay/kit";
 import { KeyCardPanel } from "@/components/stay/KeyCards";
 import { actions, activeStayOnBed, bedLabel, bookingCards, cardState, bedProperty, can, checkInBlockers, checkInPayment, checkoutSettlement, DEMO_TODAY, getState, guestName, inScope, inspectionChecklist, invoiceBalance, ROLE_USERS, useDemo } from "@/lib/demo/store";
 import { addDays } from "@/lib/demo/calc";
@@ -222,7 +222,7 @@ function ArrivalPanel({ b, onCheckedIn, onDone }: { b: Booking; onCheckedIn: () 
         <div><dt className="text-xs text-muted-foreground">{t("المستندات", "Documents")}</dt><dd>{t(`${docs.toLocaleString("ar-EG")} من ٣`, `${docs} of 3`)}</dd></div>
         <div><dt className="text-xs text-muted-foreground">{t("الدفعة الأولى والتأمين", "First installment & deposit")}</dt><dd>{pay ? money(pay.due) : "—"}</dd></div>
       </dl>
-      <Button size="lg" className="mt-4 w-full" disabled={!can(s.role, "stay.checkin")} onClick={() => setOpen(true)}><LogIn className="size-4" />{t("بدء إجراءات تسجيل الدخول", "Start check-in")}</Button>
+      <Gate perm="stay.checkin" block><Button size="lg" className="mt-4 w-full" disabled={!can(s.role, "stay.checkin")} onClick={() => setOpen(true)}><LogIn className="size-4" />{t("بدء إجراءات تسجيل الدخول", "Start check-in")}</Button></Gate>
     </Section>
   );
 }
@@ -296,9 +296,9 @@ function CheckInPanel({ b, onCheckedIn, onDone }: { b: Booking; onCheckedIn: () 
             <SelectContent>{Object.entries(METHOD).map(([k, v]) => <SelectItem key={k} value={k}>{t(...v)}</SelectItem>)}</SelectContent>
           </Select>
           <Input className="h-8 w-40 text-xs" placeholder={t("المرجع (اختياري)", "Reference (optional)")} value={ref} onChange={(e) => setRef(e.target.value)} />
-          <Button size="sm" disabled={!can(s.role, "payment.record")} onClick={collect}>
+          <Gate perm="payment.record"><Button size="sm" disabled={!can(s.role, "payment.record")} onClick={collect}>
             <Wallet className="size-4" /> {t(`تحصيل ${money(pay.due - pay.paid)}`, `Collect ${money(pay.due - pay.paid)}`)}
-          </Button>
+          </Button></Gate>
         </div>
       ),
     },
@@ -310,9 +310,9 @@ function CheckInPanel({ b, onCheckedIn, onDone }: { b: Booking; onCheckedIn: () 
       body: !checkedIn && (
         <>
           {blockers.length > 0 && <p className="mb-2 text-xs text-destructive">{t("أكمل الخطوات السابقة أولًا: ", "Finish the steps above first: ")}{blockers.join(" • ")}</p>}
-          <Button size="lg" className="w-full" disabled={blockers.length > 0 || !can(s.role, "stay.checkin")} onClick={() => {
+          <Gate perm="stay.checkin" block><Button size="lg" className="w-full" disabled={blockers.length > 0 || !can(s.role, "stay.checkin")} onClick={() => {
             if (run(actions.checkIn(b.id), t("تم تسجيل الدخول وبدء الإقامة الفعلية", "Checked in"))) onCheckedIn();
-          }}><LogIn className="size-4" />{t("تسجيل دخول النزيل", "Check the guest in")}</Button>
+          }}><LogIn className="size-4" />{t("تسجيل دخول النزيل", "Check the guest in")}</Button></Gate>
         </>
       ),
     },
@@ -466,10 +466,10 @@ function CheckOutPanel({ b }: { b: Booking }) {
                 <SelectContent>{Object.entries(METHOD).map(([k, v]) => <SelectItem key={k} value={k}>{t(...v)}</SelectItem>)}</SelectContent>
               </Select>
               <Input className="h-8 w-40 text-xs" placeholder={t("المرجع (اختياري)", "Reference (optional)")} value={ref} onChange={(e) => setRef(e.target.value)} />
-              <Button size="sm" disabled={!can(s.role, "payment.record")} onClick={() => run(actions.settleCheckout(b.id, method, ref), due > 0 ? t(`تم تحصيل ${money(due)} وإصدار الإيصال`, `Collected ${money(due)}; receipt issued`) : t(`تم رد ${money(-due)} للنزيل`, `Refunded ${money(-due)} to the guest`))}>
+              <Gate perm="payment.record"><Button size="sm" disabled={!can(s.role, "payment.record")} onClick={() => run(actions.settleCheckout(b.id, method, ref), due > 0 ? t(`تم تحصيل ${money(due)} وإصدار الإيصال`, `Collected ${money(due)}; receipt issued`) : t(`تم رد ${money(-due)} للنزيل`, `Refunded ${money(-due)} to the guest`))}>
                 {due > 0 ? <Wallet className="size-4" /> : <Undo2 className="size-4" />}
                 {due > 0 ? t(`تحصيل ${money(due)}`, `Collect ${money(due)}`) : t(`رد ${money(-due)} للنزيل`, `Refund ${money(-due)}`)}
-              </Button>
+              </Button></Gate>
             </div>
           )}
           <p className="mt-2 text-xs text-muted-foreground">
@@ -482,13 +482,13 @@ function CheckOutPanel({ b }: { b: Booking }) {
               {due > 0 ? t("حصّل المستحق أولًا لتأكيد المغادرة.", "Collect what is owed before confirming check-out.") : t("رد المبلغ للنزيل أولًا لتأكيد المغادرة.", "Refund the guest before confirming check-out.")}
             </p>
           )}
-          <Button size="lg" variant="destructive" className="mt-3 w-full" disabled={!inspected || !dateOk || due !== 0 || !can(s.role, "stay.checkout")} onClick={() => {
+          <Gate perm="stay.checkout" block><Button size="lg" variant="destructive" className="mt-3 w-full" disabled={!inspected || !dateOk || due !== 0 || !can(s.role, "stay.checkout")} onClick={() => {
             if (!run(actions.checkOut(b.id, early), t("تم تسجيل المغادرة وتسوية التأمين وإلغاء الكارت وإنشاء مهمة تنظيف", "Checked out; deposit settled; card cancelled; cleaning task created"))) return;
             if (b.scenario && getState().scenario.tourActive) actions.tour({ step: 6 });
             // Continue straight to the room's new cleaning task.
             const task = getState().tasks.find((x) => x.source === b.code && x.status === "new");
             navigate({ to: "/housekeeping", search: { task: task?.id } });
-          }}><LogOut className="size-4" />{t("تأكيد المغادرة", "Confirm check-out")}</Button>
+          }}><LogOut className="size-4" />{t("تأكيد المغادرة", "Confirm check-out")}</Button></Gate>
         </>
       ),
     },

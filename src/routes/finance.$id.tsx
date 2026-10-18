@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { PageHeader, Pill, Section, run } from "@/components/stay/kit";
+import { Gate, PageHeader, Pill, Section, run } from "@/components/stay/kit";
 import { actions, bedLabel, can, depositHeld, getState, invoiceBalance, installments, invoiceOverdue, invoicePaid, invoiceTotal, useDemo } from "@/lib/demo/store";
 import type { PayMethod } from "@/lib/demo/types";
 import { METHOD, useDate, useMoney, useT } from "@/lib/demo/ui";
@@ -48,8 +48,8 @@ function InvoicePage() {
     <div>
       <PageHeader title={`${t("الملف المالي", "Financial file")} — ${g.name}`} subtitle={`${inv.code} · ${bedLabel(s, b.bedId)} · `} actions={
         <>
-          {bal < 0 && <Button variant="outline" disabled={!can(s.role, "payment.record")} onClick={() => setRefund(true)}><Undo2 className="size-4" />{t("رد المبلغ للنزيل", "Refund guest")}</Button>}
-          <Button disabled={!can(s.role, "payment.record") || bal <= 0 || inv.status === "void"} onClick={openPayment}><Receipt className="size-4" />{t("تسجيل دفعة", "Record payment")}</Button>
+          {bal < 0 && <Gate perm="payment.record"><Button variant="outline" disabled={!can(s.role, "payment.record")} onClick={() => setRefund(true)}><Undo2 className="size-4" />{t("رد المبلغ للنزيل", "Refund guest")}</Button></Gate>}
+          <Gate perm="payment.record"><Button disabled={!can(s.role, "payment.record") || bal <= 0 || inv.status === "void"} onClick={openPayment}><Receipt className="size-4" />{t("تسجيل دفعة", "Record payment")}</Button></Gate>
         </>
       } />
       <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -84,7 +84,7 @@ function InvoicePage() {
               <span><b>{p.code}</b> · {t(...METHOD[p.method])} {p.reference && `· ${p.reference}`} {p.reversalOf && <Pill tone="warning">{t("قيد تصحيح:", "Correction:")} {p.note}</Pill>} {p.reversed && <Pill>{t("معكوس", "Reversed")}</Pill>} {!p.reversalOf && p.note && <Pill tone="info">{p.amount < 0 ? t("رد للنزيل", "Refund") : p.note}</Pill>}<span className="block text-xs text-muted-foreground">{p.user} · {fmt(p.at, true)}</span></span>
               <span className="flex items-center gap-2"><b className="tabular-nums">{money(p.amount)}</b>
                 <Button size="sm" variant="ghost" onClick={() => setReceipt(p.id)}><Printer className="size-4" /></Button>
-                {!p.reversed && !p.reversalOf && <Button size="sm" variant="ghost" disabled={!can(s.role, "payment.correct")} onClick={() => setCorr(p.id)} title={t("تصحيح موثق", "Documented correction")}><Undo2 className="size-4" /></Button>}</span>
+                {!p.reversed && !p.reversalOf && <Gate perm="payment.correct"><Button size="sm" variant="ghost" disabled={!can(s.role, "payment.correct")} onClick={() => setCorr(p.id)} title={t("تصحيح موثق", "Documented correction")}><Undo2 className="size-4" /></Button></Gate>}</span>
             </li>))}</ul>
           <p className="mt-3 text-[11px] text-muted-foreground">{t("لا يمكن حذف عملية تحصيل معتمدة؛ يتم التصحيح بقيد عكسي موثق بالسبب.", "Approved payments can't be deleted; use a documented reversal.")}</p>
         </Section>

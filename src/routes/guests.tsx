@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { PageHeader, Pill, Section, StatusPill, run } from "@/components/stay/kit";
+import { Gate, PageHeader, Pill, Section, StatusPill, run } from "@/components/stay/kit";
 import { GuestIdFields } from "@/components/stay/GuestIdFields";
 import { actions, bedLabel, can, invoiceBalance, useDemo } from "@/lib/demo/store";
 import { BOOKING_STATUS, ID_TYPE, useDate, useMoney, useT } from "@/lib/demo/ui";
@@ -35,7 +35,7 @@ function Guests() {
   const gb = g ? s.bookings.filter((b) => b.guestId === g.id) : [];
   return (
     <div>
-      <PageHeader title={t("العملاء والطلاب", "Guests & students")} actions={<Button disabled={!can(s.role, "guest.edit")} onClick={() => setAdd(true)}><Plus className="size-4" />{t("إضافة ملف", "Add profile")}</Button>} />
+      <PageHeader title={t("العملاء والطلاب", "Guests & students")} actions={<Gate perm="guest.edit"><Button disabled={!can(s.role, "guest.edit")} onClick={() => setAdd(true)}><Plus className="size-4" />{t("إضافة ملف", "Add profile")}</Button></Gate>} />
       <Section>
         <div className="relative mb-3 max-w-sm"><Search className="absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input className="ps-9" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("بحث بالاسم أو الهاتف", "Search name or phone")} /></div>
         <div className="overflow-x-auto overflow-y-hidden"><table className="w-full text-sm">

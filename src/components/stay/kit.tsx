@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import type { LucideIcon } from "lucide-react";
 import { TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import { cardAlerts, DEMO_TODAY, inScope, invoiceOverdue, kpis, useDemo } from "@/lib/demo/store";
+import { can, cardAlerts, DEMO_TODAY, inScope, invoiceOverdue, kpis, ROLE_NAMES, rolesWith, useDemo, type Perm } from "@/lib/demo/store";
 import type { DemoState } from "@/lib/demo/types";
 import { useT } from "@/lib/demo/ui";
 
@@ -133,4 +133,14 @@ export function CardTab({ value, icon: Icon, label, count, alert }: { value: str
       </span>
     </TabsTrigger>
   );
+}
+
+/** Wraps an action the current role can't take, so hovering the locked control says which roles can.
+ *  `block` keeps a full-width button full width. */
+export function Gate({ perm, block, children }: { perm: Perm; block?: boolean; children: ReactNode }) {
+  const s = useDemo();
+  const t = useT();
+  if (can(s.role, perm)) return <>{children}</>;
+  const roles = rolesWith(perm).map((r) => t(...ROLE_NAMES[r])).join(t("، ", ", "));
+  return <span title={t(`يحتاج دور: ${roles}`, `Needs: ${roles}`)} className={cn("cursor-not-allowed", block ? "block" : "inline-flex")}>{children}</span>;
 }

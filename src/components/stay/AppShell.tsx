@@ -11,7 +11,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { actions, can, DEMO_TODAY, guestName, loadPersisted, ROLE_NAMES, ROLE_USERS, useDemo } from "@/lib/demo/store";
+import { actions, can, canSee, DEMO_TODAY, guestName, isReadOnly, loadPersisted, ROLE_HOME, ROLE_NAMES, ROLE_USERS, useDemo } from "@/lib/demo/store";
 import type { Role } from "@/lib/demo/types";
 import { useDate, useT } from "@/lib/demo/ui";
 import { cn } from "@/lib/utils";
@@ -36,6 +36,7 @@ const NAV = [
 ] as const;
 
 function NavList({ onNav }: { onNav?: () => void }) {
+  const s = useDemo();
   const t = useT();
   const path = useRouterState({ select: (r) => r.location.pathname });
   // The most specific matching item is active, so "New booking" doesn't also light up "Current bookings".
@@ -43,7 +44,7 @@ function NavList({ onNav }: { onNav?: () => void }) {
   const activeTo = NAV.filter((n) => matches(n.to)).sort((a, b) => b.to.length - a.to.length)[0]?.to;
   return (
     <nav className="flex flex-col gap-0.5">
-      {NAV.map((n) => {
+      {NAV.filter((n) => canSee(s.role, n.to)).map((n) => {
         const active = n.to === activeTo;
         return (
           <Link
@@ -115,8 +116,23 @@ function GlobalSearch() {
   );
 }
 
+/** A page outside the current role's work, opened by link: say so instead of showing it. */
+function NoAccess() {
+  const s = useDemo();
+  const t = useT();
+  return (
+    <div className="mx-auto mt-10 max-w-md rounded-xl border bg-card p-6 text-center">
+      <ShieldCheck className="mx-auto size-8 text-muted-foreground" />
+      <p className="mt-3 font-semibold">{t("هذه الصفحة غير متاحة لدورك", "This page isn't available to your role")}</p>
+      <p className="mt-1 text-sm text-muted-foreground">{t(`أنت الآن: ${ROLE_NAMES[s.role][0]}`, `You're acting as ${ROLE_NAMES[s.role][1]}`)}</p>
+      <Button asChild className="mt-4"><Link to={ROLE_HOME[s.role] as "/"}>{t("الذهاب لصفحتك الرئيسية", "Go to your home page")}</Link></Button>
+    </div>
+  );
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
   const s = useDemo();
+  const path = useRouterState({ select: (r) => r.location.pathname });
   const t = useT();
   const fmtDate = useDate();
   const navigate = useNavigate();
@@ -222,7 +238,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <DropdownMenuContent align="end" className="w-60">
                 <p className="px-2 py-1.5 text-xs text-muted-foreground">{t("تبديل الدور التجريبي", "Switch demo role")}</p>
                 {(Object.keys(ROLE_NAMES) as Role[]).map((r) => (
-                  <DropdownMenuItem key={r} onClick={() => { actions.setRole(r); toast.info(t(`أنت الآن: ${ROLE_NAMES[r][0]}`, `Now acting as ${ROLE_NAMES[r][1]}`)); }} className={cn(r === s.role && "bg-muted font-semibold")}>
+                  <DropdownMenuItem key={r} onClick={() => { actions.setRole(r); navigate({ to: ROLE_HOME[r] as "/" }); toast.info(t(`أنت الآن: ${ROLE_NAMES[r][0]}`, `Now acting as ${ROLE_NAMES[r][1]}`)); }} className={cn(r === s.role && "bg-muted font-semibold")}>
                     {t(...ROLE_NAMES[r])}
                   </DropdownMenuItem>
                 ))}
@@ -235,7 +251,14 @@ export function AppShell({ children }: { children: ReactNode }) {
           <ResetButton disabled={!can(s.role, "demo.reset")} />
         </div>
         <TourPanel />
-        <main className="mx-auto max-w-[1400px] p-4 md:p-6">{children}</main>
+        <main className="mx-auto max-w-[1400px] p-4 md:p-6">
+          {isReadOnly(s.role) && (
+            <p className="mb-4 flex items-center gap-2 rounded-lg border border-info/30 bg-info-soft p-3 text-sm font-medium text-info">
+              <ShieldCheck className="size-4" />{t("وضع المراجعة – قراءة فقط: يمكنك الاطلاع على كل شيء دون تعديل أي بيانات.", "Audit mode – read only: you can see everything but change nothing.")}
+            </p>
+          )}
+          {canSee(s.role, path) ? children : <NoAccess />}
+        </main>
       </div>
     </div>
     </DirectionProvider>

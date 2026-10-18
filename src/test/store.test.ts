@@ -4,6 +4,7 @@ import {
   actions,
   activeStayOnBed,
   bookingCards,
+  canSee,
   cardAlerts,
   cardState,
   MAX_CARDS,
@@ -367,6 +368,25 @@ describe("room gender", () => {
   it("is empty for a vacant room", () => {
     checkOutClean(bookingOn(BED1).id);
     expect(roomGenders(getState(), ROOM).size).toBe(0);
+  });
+});
+
+describe("pages by role", () => {
+  it("shows each role its own pages, with detail pages under their list", () => {
+    expect(canSee("housekeeping", "/housekeeping")).toBe(true);
+    expect(canSee("housekeeping", "/rooms/r-A-104")).toBe(true);
+    expect(canSee("housekeeping", "/finance")).toBe(false);
+    expect(canSee("accountant", "/finance/inv2001")).toBe(true);
+    expect(canSee("accountant", "/bookings/bk1001")).toBe(true);
+    // Reading bookings doesn't open making them.
+    expect(canSee("accountant", "/bookings/new")).toBe(false);
+    expect(canSee("frontdesk", "/settings")).toBe(false);
+    expect(canSee("auditor", "/settings")).toBe(true);
+    // The auditor reviews records but doesn't get the pages that carry out work.
+    expect(canSee("auditor", "/bookings/bk1001")).toBe(true);
+    expect(canSee("auditor", "/bookings/new")).toBe(false);
+    expect(canSee("auditor", "/stays")).toBe(false);
+    expect(canSee("auditor", "/housekeeping")).toBe(false);
   });
 });
 

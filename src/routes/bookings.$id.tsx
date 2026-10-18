@@ -4,7 +4,7 @@ import { CheckCircle2, XCircle, Ban } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { PageHeader, Section, StatusPill, run } from "@/components/stay/kit";
+import { Gate, PageHeader, Section, StatusPill, run } from "@/components/stay/kit";
 import { KeyCardPanel } from "@/components/stay/KeyCards";
 import { actions, bedLabel, bedProperty, bookingCards, can, getState, invoiceBalance, useDemo } from "@/lib/demo/store";
 import { BOOKING_STATUS, useDate, useMoney, useT } from "@/lib/demo/ui";
@@ -42,13 +42,13 @@ function BookingDetail() {
             <StatusPill map={BOOKING_STATUS} value={b.status} />
             {b.status === "pending" && (
               <>
-                <Button disabled={!review} onClick={() => { if (run(actions.confirmBooking(b.id), t("تم تأكيد الحجز وإنشاء العقد والفاتورة", "Booking confirmed; contract & invoice created")) && getState().scenario.tourActive && b.scenario) { actions.tour({ step: 3 }); navigate({ to: "/stays", search: { tab: "arr" } }); } }}>
+                <Gate perm="booking.review"><Button disabled={!review} onClick={() => { if (run(actions.confirmBooking(b.id), t("تم تأكيد الحجز وإنشاء العقد والفاتورة", "Booking confirmed; contract & invoice created")) && getState().scenario.tourActive && b.scenario) { actions.tour({ step: 3 }); navigate({ to: "/stays", search: { tab: "arr" } }); } }}>
                   <CheckCircle2 className="size-4" /> {t("تأكيد الحجز", "Confirm booking")}
-                </Button>
-                <Button variant="outline" disabled={!review} onClick={() => setDlg("rejected")}><XCircle className="size-4" />{t("رفض", "Reject")}</Button>
+                </Button></Gate>
+                <Gate perm="booking.review"><Button variant="outline" disabled={!review} onClick={() => setDlg("rejected")}><XCircle className="size-4" />{t("رفض", "Reject")}</Button></Gate>
               </>
             )}
-            {["pending", "confirmed"].includes(b.status) && <Button variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive-soft hover:text-destructive" disabled={!review} onClick={() => setDlg("cancelled")}><Ban className="size-4" />{t("إلغاء", "Cancel")}</Button>}
+            {["pending", "confirmed"].includes(b.status) && <Gate perm="booking.review"><Button variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive-soft hover:text-destructive" disabled={!review} onClick={() => setDlg("cancelled")}><Ban className="size-4" />{t("إلغاء", "Cancel")}</Button></Gate>}
             {b.status === "confirmed" && <Button variant="secondary" onClick={() => navigate({ to: "/stays", search: { tab: "arr" } })}>{t("إلى تسجيل الدخول", "Go to check-in")}</Button>}
           </>
         }
