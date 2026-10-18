@@ -4,8 +4,8 @@ import { Archive, CalendarDays, Hourglass, List, Plus, Search } from "lucide-rea
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PageHeader, Pill, Section, StatusPill } from "@/components/stay/kit";
+import { Tabs, TabsContent, TabsList } from "@/components/ui/tabs";
+import { CARD_TABS, CardTab, PageHeader, Pill, Section, StatusPill } from "@/components/stay/kit";
 import { bedLabel, bedProperty, guestName, inScope, useDemo, DEMO_TODAY } from "@/lib/demo/store";
 import { addDays } from "@/lib/demo/calc";
 import { BOOKING_STATUS, useDate, useMoney, useT } from "@/lib/demo/ui";
@@ -34,11 +34,11 @@ function Bookings() {
     <div>
       <PageHeader title={t("الحجوزات الحالية", "Current bookings")} subtitle={t("الحجز المؤكد لا يُحتسب إشغالًا فعليًا قبل تسجيل الدخول.", "Confirmed ≠ occupied until check-in.")} actions={<Button asChild><Link to="/bookings/new"><Plus className="size-4" />{t("حجز جديد", "New booking")}</Link></Button>} />
       <Tabs dir={s.lang === "ar" ? "rtl" : "ltr"} defaultValue={initialTab}>
-        <TabsList>
-          <TabsTrigger value="pending" className="gap-1.5"><Hourglass className="size-4" />{t("حجوزات قيد المراجعة", "Pending review")} ({num(count(["pending"]))})</TabsTrigger>
-          <TabsTrigger value="active" className="gap-1.5"><List className="size-4" />{t("الحجوزات النشطة", "Active bookings")} ({num(count(ACTIVE))})</TabsTrigger>
-          <TabsTrigger value="ended" className="gap-1.5"><Archive className="size-4" />{t("الحجوزات المنتهية", "Ended bookings")} ({num(count(ENDED))})</TabsTrigger>
-          <TabsTrigger value="cal" className="gap-1.5"><CalendarDays className="size-4" />{t("تقويم التوافر", "Availability calendar")}</TabsTrigger>
+        <TabsList className={CARD_TABS}>
+          <CardTab value="pending" icon={Hourglass} label={t("حجوزات قيد المراجعة", "Pending review")} count={num(count(["pending"]))} />
+          <CardTab value="active" icon={List} label={t("الحجوزات النشطة", "Active bookings")} count={num(count(ACTIVE))} />
+          <CardTab value="ended" icon={Archive} label={t("الحجوزات المنتهية", "Ended bookings")} count={num(count(ENDED))} />
+          <CardTab value="cal" icon={CalendarDays} label={t("تقويم التوافر", "Availability calendar")} />
         </TabsList>
         <TabsContent value="pending"><BookingList statuses={["pending"]} created={search.created} /></TabsContent>
         <TabsContent value="active"><BookingList statuses={ACTIVE} initialStatus={initialTab === "active" ? search.status : undefined} created={search.created} /></TabsContent>

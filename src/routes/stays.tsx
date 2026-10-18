@@ -6,8 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { PageHeader, Pill, Section, run } from "@/components/stay/kit";
+import { Tabs, TabsContent, TabsList } from "@/components/ui/tabs";
+import { CARD_TABS, CardTab, PageHeader, Pill, Section, run } from "@/components/stay/kit";
 import { actions, activeStayOnBed, bedLabel, bedProperty, can, checkInBlockers, checkInPayment, checkoutSettlement, DEMO_TODAY, getState, guestName, inScope, inspectionChecklist, invoiceBalance, ROLE_USERS, useDemo } from "@/lib/demo/store";
 import { addDays } from "@/lib/demo/calc";
 import type { Booking, ItemCondition, PayMethod } from "@/lib/demo/types";
@@ -64,11 +64,11 @@ function Stays() {
         subtitle={t(`اليوم ${DEMO_TODAY} · الإشغال الفعلي يبدأ عند تسجيل الدخول وينتهي عند تسجيل المغادرة.`, `Today ${DEMO_TODAY} · actual occupancy runs from check-in to check-out.`)}
       />
       <Tabs dir={s.lang === "ar" ? "rtl" : "ltr"} value={tab} onValueChange={(v) => { setTab(v); setSel(null); }}>
-        <TabsList className="grid h-auto w-full grid-cols-2 justify-start gap-2 bg-transparent p-0 sm:grid-cols-[repeat(2,minmax(0,12rem))] lg:grid-cols-[repeat(4,minmax(0,12rem))]">
-          <StayTab value="arr" icon={LogIn} label={t("تسجيل الدخول", "Check-in")} count={num(confirmed.length)} />
-          <StayTab value="in" icon={BedDouble} label={t("المقيمون حاليًا", "In-house")} count={num(inhouse.length)} />
-          <StayTab value="out" icon={LogOut} label={t("تسجيل المغادرة", "Check-out")} count={num(leaving.length)} />
-          <StayTab value="late" icon={AlarmClock} label={t("تجاوز موعد المغادرة", "Past departure date")} count={num(overstays.length)} alert={overstays.length > 0} />
+        <TabsList className={CARD_TABS}>
+          <CardTab value="arr" icon={LogIn} label={t("تسجيل الدخول", "Check-in")} count={num(confirmed.length)} />
+          <CardTab value="in" icon={BedDouble} label={t("المقيمون حاليًا", "In-house")} count={num(inhouse.length)} />
+          <CardTab value="out" icon={LogOut} label={t("تسجيل المغادرة", "Check-out")} count={num(leaving.length)} />
+          <CardTab value="late" icon={AlarmClock} label={t("تجاوز موعد المغادرة", "Past departure date")} count={num(overstays.length)} alert={overstays.length > 0} />
         </TabsList>
         <TabsContent value="arr">
           <Split groups={arrivals} sel={sel} setSel={setSel} date={(b) => b.start} empty={t(`لا يوجد وصول متوقع خلال ${num(WINDOW_DAYS)} أيام`, `No arrivals in the next ${WINDOW_DAYS} days`)}>
@@ -92,26 +92,6 @@ function Stays() {
         </TabsContent>
       </Tabs>
     </div>
-  );
-}
-
-/** One of the page's four lists as a large card: icon, name and how many it holds. `alert` marks overstays in red. */
-function StayTab({ value, icon: Icon, label, count, alert }: { value: string; icon: typeof LogIn; label: string; count: string; alert?: boolean }) {
-  return (
-    <TabsTrigger
-      value={value}
-      className={cn(
-        "h-auto justify-start gap-3 whitespace-normal rounded-xl border bg-card p-3 text-center text-foreground shadow-none data-[state=active]:border-primary data-[state=active]:bg-primary-soft data-[state=active]:shadow-none",
-        alert && "border-destructive/40 data-[state=active]:border-destructive data-[state=active]:bg-destructive-soft",
-      )}
-    >
-      <span className={cn("grid size-10 shrink-0 place-items-center rounded-lg bg-muted", alert ? "text-destructive" : "text-primary")}><Icon className="size-5" /></span>
-      {/* The icon sits at the card's start edge (right in Arabic); the name and count center in the rest. */}
-      <span className="min-w-0 flex-1">
-        <span className="block text-sm font-medium leading-tight">{label}</span>
-        <span className={cn("block text-xl font-bold tabular-nums", alert && "text-destructive")}>{count}</span>
-      </span>
-    </TabsTrigger>
   );
 }
 

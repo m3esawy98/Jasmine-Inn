@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { toast } from "sonner";
 import type { LucideIcon } from "lucide-react";
+import { TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { DEMO_TODAY, invoiceOverdue, kpis, useDemo } from "@/lib/demo/store";
 import type { DemoState } from "@/lib/demo/types";
@@ -99,3 +100,28 @@ export function computeAlerts(s: DemoState, t: (a: string, e: string) => string)
   return out;
 }
 export { DEMO_TODAY };
+
+/** Class for a TabsList of CardTabs: one row of equal cards, each as wide as the longest one-line name;
+ *  two per row on phones, where names may wrap. */
+export const CARD_TABS =
+  "grid h-auto w-full grid-cols-2 items-stretch justify-start gap-2 bg-transparent p-0 sm:inline-grid sm:w-auto sm:auto-cols-fr sm:grid-flow-col sm:grid-cols-none";
+
+/** A tab drawn as a large card: icon at the start edge (right in Arabic), name and count centered beside it.
+ *  `alert` turns it red (e.g. overdue items); without a count the name sits alone. */
+export function CardTab({ value, icon: Icon, label, count, alert }: { value: string; icon: LucideIcon; label: string; count?: string; alert?: boolean }) {
+  return (
+    <TabsTrigger
+      value={value}
+      className={cn(
+        "h-auto min-w-36 justify-start gap-2.5 whitespace-normal rounded-xl sm:whitespace-nowrap border bg-card p-3 pe-4 text-center text-foreground shadow-none data-[state=active]:border-primary data-[state=active]:bg-primary-soft data-[state=active]:shadow-none",
+        alert && "border-destructive/40 data-[state=active]:border-destructive data-[state=active]:bg-destructive-soft",
+      )}
+    >
+      <span className={cn("grid size-9 shrink-0 place-items-center rounded-lg bg-muted", alert ? "text-destructive" : "text-primary")}><Icon className="size-5" /></span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-medium leading-tight">{label}</span>
+        {count !== undefined && <span className={cn("block text-xl font-bold tabular-nums", alert && "text-destructive")}>{count}</span>}
+      </span>
+    </TabsTrigger>
+  );
+}
