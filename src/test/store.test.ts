@@ -388,6 +388,18 @@ describe("room key cards", () => {
     expect(actions.issueCard(b.id).ok).toBe(true);
   });
 
+  it("lets a checked-in guest leave without a card only with a written reason", () => {
+    const b = book(BED2, "2026-12-01", "2026-12-31");
+    expect(actions.skipCard(b.id, "جهاز التكويد عطلان").ok).toBe(false);
+    confirmAndCheckIn(b);
+    expect(actions.skipCard(b.id, " ").ok).toBe(false);
+    expect(actions.skipCard(b.id, "جهاز التكويد عطلان").ok).toBe(true);
+    expect(getState().bookings.find((x) => x.id === b.id)!.cardSkipped?.reason).toBe("جهاز التكويد عطلان");
+    // The card is still owed and can be encoded later.
+    expect(actions.issueCard(b.id).ok).toBe(true);
+    expect(actions.skipCard(b.id, "مرة أخرى").ok).toBe(false);
+  });
+
   it("caps cards per guest and replaces a lost one instead", () => {
     const id = resident().id;
     while (live(id).length < MAX_CARDS) expect(actions.issueCard(id).ok).toBe(true);

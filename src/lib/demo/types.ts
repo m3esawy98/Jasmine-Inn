@@ -101,6 +101,8 @@ export interface Booking {
   /** Who was sent to inspect the room before check-out. */
   /** Pre-check-out room inspection; check-out requires it to be approved. */
   inspection?: Inspection;
+  /** Checked in without a room card, and why (e.g. the encoder is down); the card is still owed. */
+  cardSkipped?: { reason: string; at: string; by: string };
 }
 export type ItemCondition = "ok" | "damaged" | "missing";
 export interface InspectionItem {

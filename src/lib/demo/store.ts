@@ -493,6 +493,22 @@ export const actions = {
     return { ok: true, data: card };
   },
 
+  /** The guest leaves the desk without a card for now; the reason is recorded and the card is still owed. */
+  skipCard(bookingId: string, reason: string): Result {
+    if (!can(state.role, "stay.checkin")) return deny();
+    const s = { ...state };
+    const b = s.bookings.find((x) => x.id === bookingId);
+    if (!b || b.status !== "checked_in") return { ok: false, error: "سجّل دخول النزيل أولًا" };
+    if (s.cards.some((k) => k.bookingId === bookingId && k.status === "active")) return { ok: false, error: "النزيل معه كارت بالفعل" };
+    if (!reason.trim()) return { ok: false, error: "اكتب سبب المتابعة بدون كارت" };
+    const at = nowIso();
+    const text = `تسجيل الدخول بدون كارت: ${reason.trim()}`;
+    s.bookings = s.bookings.map((x) => (x.id === bookingId ? { ...x, cardSkipped: { reason: reason.trim(), at, by: user() }, events: [...x.events, { at, text, user: user() }] } : x));
+    state = log(s, `${text} (${b.code})`, b.code, isScenario(s, bookingId));
+    emit();
+    return { ok: true };
+  },
+
   /** Cancels a lost card at the lock and encodes a replacement in its place. */
   replaceCard(cardId: string, reason: string): Result<KeyCard> {
     if (!can(state.role, "stay.checkin")) return deny();

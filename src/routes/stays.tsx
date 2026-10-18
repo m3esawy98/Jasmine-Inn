@@ -131,7 +131,7 @@ function Split({ groups, fresh, sel, setSel, date, empty, children }: { groups: 
                 {g.items.map((b) => (
                   <li key={b.id}>
                     <button data-id={b.id} onClick={() => setSel(b.id)} className={cn("flex w-full items-center justify-between gap-2 rounded-lg px-2 py-2.5 text-start text-sm", current?.id === b.id && "bg-primary-soft")}>
-                      <span><span className="font-medium">{guestName(s, b.guestId)}</span>{b.scenario && <Pill tone="primary" className="ms-2">{t("السيناريو", "Scenario")}</Pill>}{b.id === fresh && <Pill tone="success" className="ms-2">{t("تم تسجيل الدخول", "Checked in")}</Pill>}{b.status === "checked_in" && !hasCard(s, b.id) && <Pill tone="warning" className="ms-2">{t("بدون كارت", "No card")}</Pill>}<span className="block text-xs text-muted-foreground">{bedLabel(s, b.bedId)}</span></span>
+                      <span><span className="font-medium">{guestName(s, b.guestId)}</span>{b.scenario && <Pill tone="primary" className="ms-2">{t("السيناريو", "Scenario")}</Pill>}{b.id === fresh && <Pill tone="success" className="ms-2">{t("تم تسجيل الدخول", "Checked in")}</Pill>}{b.status === "checked_in" && !hasCard(s, b.id) && <span title={b.cardSkipped?.reason}><Pill tone="warning" className="ms-2">{t("بدون كارت", "No card")}</Pill></span>}<span className="block text-xs text-muted-foreground">{bedLabel(s, b.bedId)}</span></span>
                       <span className="text-xs text-muted-foreground">{fmt(date(b))}</span>
                     </button>
                   </li>
@@ -248,6 +248,8 @@ function CheckInPanel({ b, onCheckedIn, onDone }: { b: Booking; onCheckedIn: () 
   const checkedIn = b.status === "checked_in";
   const stay = s.stays.find((x) => x.bookingId === b.id && x.status === "active");
   const card = bookingCards(s, b.id).find((k) => cardState(k) === "active");
+  const [skipping, setSkipping] = useState(false);
+  const [skipReason, setSkipReason] = useState("");
   const docs: [keyof Booking["docs"], string, string][] = [
     ["id", g.idType === "passport" ? "صورة جواز السفر" : "صورة بطاقة الرقم القومي", g.idType === "passport" ? "Passport copy" : "National ID copy"],
     ["enrollment", g.kind === "student" ? "إثبات القيد الجامعي" : "بيانات الجهة", "Enrollment / company proof"],
@@ -334,11 +336,21 @@ function CheckInPanel({ b, onCheckedIn, onDone }: { b: Booking; onCheckedIn: () 
     <Section title={t("تسجيل الدخول", "Check-in")}>
       <GuestHeader b={b} />
       <Steps steps={steps} />
-      {checkedIn && (
-        <Button className="mt-3 w-full" variant={card ? "default" : "ghost"} onClick={onDone}>
-          {card ? t("تم تسجيل الدخول — الذهاب إلى صفحة المقيمين", "Checked in — go to in-house") : t("متابعة بدون كارت (يظهر «بدون كارت» في المقيمين)", "Continue without a card (marked “No card” in-house)")}
-        </Button>
-      )}
+      {checkedIn &&
+        (card ? (
+          <Button className="mt-3 w-full" onClick={onDone}>{t("تم تسجيل الدخول — الذهاب إلى صفحة المقيمين", "Checked in — go to in-house")}</Button>
+        ) : skipping ? (
+          // Leaving without a card is allowed (the encoder may be down), but only with a written reason.
+          <div className="mt-3 space-y-2 rounded-lg border border-warning/30 bg-warning-soft p-3">
+            <Input autoFocus placeholder={t("سبب المتابعة بدون كارت، مثل: جهاز التكويد عطلان", "Why, e.g. the encoder is down")} value={skipReason} onChange={(e) => setSkipReason(e.target.value)} />
+            <div className="flex gap-2">
+              <Button disabled={!skipReason.trim()} onClick={() => { if (run(actions.skipCard(b.id, skipReason), t("سُجّل الدخول بدون كارت؛ يظهر «بدون كارت» في المقيمين", "Checked in without a card; marked “No card” in-house"))) onDone(); }}>{t("متابعة بدون كارت", "Continue without a card")}</Button>
+              <Button variant="ghost" onClick={() => { setSkipping(false); setSkipReason(""); }}>{t("إلغاء", "Cancel")}</Button>
+            </div>
+          </div>
+        ) : (
+          <Button className="mt-3 w-full" variant="outline" onClick={() => setSkipping(true)}>{t("متابعة بدون كارت", "Continue without a card")}</Button>
+        ))}
     </Section>
   );
 }
