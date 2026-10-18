@@ -172,6 +172,58 @@ export function planForRoom(room: Room) {
   if (room.type === "hotel") return room.sleeps === 1 ? "pl-night-single" : "pl-night";
   return room.type === "apartment" ? "pl-week" : "pl-month";
 }
+/** Beds in a room with a live booking overlapping the period. */
+const takenBeds = (s: DemoState, roomId: string, start: string, end: string, planId: string) =>
+  s.beds.filter((b) => b.roomId === roomId && bedConflict(s, b.id, start, end, planId));
+/** Fill-first rule for student housing: an empty shared room waits while rooms of the same type already
+ *  have someone booked for the period and still a bed this guest can take. Returns those rooms (none when
+ *  the room is open to book). */
+export function fillFirstRooms(s: DemoState, roomId: string, start: string, end: string, planId: string, gender: Gender) {
+  const room = s.rooms.find((r) => r.id === roomId);
+  if (!room || s.properties.find((p) => p.id === room.propertyId)?.type !== "student") return [];
+  if (s.beds.filter((b) => b.roomId === roomId).length < 2 || takenBeds(s, roomId, start, end, planId).length > 0) return [];
+  return s.rooms.filter(
+    (r) =>
+      r.id !== roomId &&
+      r.propertyId === room.propertyId &&
+      r.type === room.type &&
+      takenBeds(s, r.id, start, end, planId).length > 0 &&
+      bookableBeds(s, r.id, start, end, planId, gender).length > 0,
+  );
+}
+/** Fill-first as of today, for the rooms pages: a partly occupied shared student room is a priority to
+ *  fill; an empty one (no residents, no upcoming bookings) waits while rooms of its type are partly
+ *  occupied (either gender, each named). */
+export function fillFirstToday(s: DemoState, roomId: string): { priority: boolean; waitsFor: { room: Room; gender?: Gender }[] } {
+  const none = { priority: false, waitsFor: [] };
+  const room = s.rooms.find((r) => r.id === roomId);
+  if (!room || s.properties.find((p) => p.id === room.propertyId)?.type !== "student") return none;
+  if (s.beds.filter((b) => b.roomId === roomId).length < 2) return none;
+  const status = roomStatus(s, roomId);
+  if (status === "partial") return { priority: true, waitsFor: [] };
+  // Empty means nobody living there and nobody booked to come; a room with upcoming bookings is taken.
+  if (status !== "available" || s.beds.some((b) => b.roomId === roomId && upcomingBookingOnBed(s, b.id))) return none;
+  const waitsFor = s.rooms
+    .filter((r) => r.id !== roomId && r.propertyId === room.propertyId && r.type === room.type && roomStatus(s, r.id) === "partial")
+    .map((r) => {
+      const g = roomGenders(s, r.id);
+      return { room: r, gender: g.size === 1 ? [...g][0] : undefined };
+    });
+  return { priority: false, waitsFor };
+}
+/** The manager's approval code for a fill-first exception (demo only; a real system asks the manager to approve). */
+export const OVERRIDE_CODE = "1234";
+/** Checks a fill-first exception before it is used: the right code, the room it names, and a reason. */
+export function checkOverride(o: { roomId: string; reason: string; code: string } | undefined, roomId: string): Result {
+  if (!o) return { ok: false, error: "فتح غرفة فاضية يحتاج استثناءً بكلمة سر المدير ورقم الغرفة وسبب مكتوب." };
+  if (o.code !== OVERRIDE_CODE) return { ok: false, error: "كلمة سر الاستثناء غير صحيحة." };
+  if (o.roomId !== roomId) return { ok: false, error: "الاستثناء لغرفة أخرى." };
+  if (!o.reason.trim()) return { ok: false, error: "اكتب سبب الاستثناء." };
+  return { ok: true };
+}
+/** Whether a room already has someone booked for the period (a fill-first room to recommend). */
+export const roomPartlyTaken = (s: DemoState, roomId: string, start: string, end: string, planId: string) =>
+  takenBeds(s, roomId, start, end, planId).length > 0;
 /** How far ahead a room can be booked from its page; beyond this it counts as booked up. */
 export const BOOK_AHEAD_DAYS = 90;
 /** The first day, from today, that some bed in the room has no booking on it: today for a free bed,
@@ -237,6 +289,9 @@ export const actions = {
     end: string;
     planId: string;
     scenario?: boolean;
+    /** Fill-first exception: opens this empty room before the partly filled ones, with a reason and the
+     *  manager's approval code. */
+    override?: { roomId: string; reason: string; code: string };
   }): Result<Booking> {
     if (!can(state.role, "booking.create")) return deny();
     const s = { ...state };
@@ -278,6 +333,12 @@ export const actions = {
         error: `مرفوض: الغرفة ${room.code} مخصصة ${gender === "male" ? "للطالبات" : "للطلاب"} في هذه الفترة (الحجز ${mixed.code}). لا يمكن تسكين ${gender === "male" ? "طالب" : "طالبة"} فيها.`,
       };
     }
+    const waiting = gender ? fillFirstRooms(s, room.id, input.start, input.end, plan.id, gender) : [];
+    const override = waiting.length ? input.override?.reason.trim() : undefined;
+    if (waiting.length) {
+      const exc = checkOverride(input.override, room.id);
+      if (!exc.ok) return { ok: false, error: `املأ الغرف المشغولة جزئيًا أولًا: ${waiting.map((r) => r.code).join("، ")}. ${exc.error}` };
+    }
     const n = next(s, "BK");
     const booking: Booking = {
       id: `bk${n}`,
@@ -291,13 +352,16 @@ export const actions = {
       deposit: plan.deposit,
       status: "pending",
       docs: { id: false, enrollment: false, photo: false },
-      events: [{ at: nowIso(), text: "تم إنشاء الحجز بحالة «قيد المراجعة»", user: user() }],
+      events: [
+        { at: nowIso(), text: "تم إنشاء الحجز بحالة «قيد المراجعة»", user: user() },
+        ...(override ? [{ at: nowIso(), text: `استثناء: فتح غرفة فاضية ${room.code} قبل امتلاء الغرف الحالية — ${override}`, user: user() }] : []),
+      ],
       createdAt: nowIso(),
       scenario: input.scenario,
     };
     s.bookings = [booking, ...s.bookings];
     if (input.scenario) s.scenario = { ...s.scenario, bookingId: booking.id };
-    state = log(s, `إنشاء حجز ${booking.code} - ${room.code} / ${bed.label}`, booking.code, input.scenario);
+    state = log(s, `إنشاء حجز ${booking.code} - ${room.code} / ${bed.label}${override ? ` (استثناء: فتح غرفة فاضية — ${override})` : ""}`, booking.code, input.scenario);
     emit();
     return { ok: true, data: booking };
   },

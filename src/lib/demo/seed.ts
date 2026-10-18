@@ -19,7 +19,7 @@ import type {
 import { addDays, addMonths, computeRent } from "./calc";
 
 export const DEMO_TODAY = "2026-11-01";
-export const STATE_VERSION = 13;
+export const STATE_VERSION = 14;
 
 function rng(seed: number) {
   let s = seed;
@@ -287,6 +287,32 @@ export function createSeed(): DemoState {
     }
   }
 
+  // Empty a few shared student rooms by moving their residents and upcoming bookings into free beds of
+  // partly filled rooms of the same type and gender, so the demo shows fill-first: empty rooms wait.
+  const live = (bedId: string) => bookings.filter((b) => b.bedId === bedId && ["pending", "confirmed", "checked_in"].includes(b.status));
+  const emptied = new Set<string>();
+  for (const [type, count] of [["quad", 2], ["double", 1]] as const) {
+    const shared = rooms.filter((rm) => rm.propertyId === "p1" && rm.type === type && rm.id !== scenarioRoom);
+    const used = (rm: Room) => beds.filter((b) => b.roomId === rm.id && live(b.id).length > 0);
+    // The emptiest rooms that have anyone are the cheapest to move out.
+    const sources = shared.filter((rm) => used(rm).length > 0).sort((a, b) => used(a).length - used(b).length);
+    for (const src of sources) {
+      if ([...emptied].filter((id) => rooms.find((x) => x.id === id)!.type === type).length >= count) break;
+      const gender = roomGender.get(src.id);
+      // Free beds in other rooms of the same gender that already have someone (never into a room being emptied).
+      const spare = shared
+        .filter((rm) => rm.id !== src.id && !emptied.has(rm.id) && roomGender.get(rm.id) === gender && used(rm).length > 0)
+        .flatMap((rm) => beds.filter((b) => b.roomId === rm.id && live(b.id).length === 0));
+      const moving = used(src);
+      if (spare.length < moving.length) continue;
+      moving.forEach((from, i) => {
+        for (const b of live(from.id)) b.bedId = spare[i].id;
+        for (const st of stays) if (st.bedId === from.id && st.status === "active") st.bedId = spare[i].id;
+      });
+      emptied.add(src.id);
+    }
+  }
+
   // Fill shared rooms in bed order: residents on the lowest-numbered beds, then confirmed, then pending
   // bookings, free beds last. Each bed's bookings move together, so no overlaps are introduced.
   const rank = (bedId: string) => {
@@ -305,7 +331,7 @@ export function createSeed(): DemoState {
 
   // Rooms needing housekeeping / maintenance (only rooms with no active stays)
   const freeRooms = rooms.filter(
-    (rm) => rm.id !== scenarioRoom && !stays.some((s) => s.status === "active" && beds.find((b) => b.id === s.bedId)?.roomId === rm.id) &&
+    (rm) => rm.id !== scenarioRoom && !emptied.has(rm.id) && !stays.some((s) => s.status === "active" && beds.find((b) => b.id === s.bedId)?.roomId === rm.id) &&
       !bookings.some((b) => ["confirmed", "pending"].includes(b.status) && beds.find((bd) => bd.id === b.bedId)?.roomId === rm.id),
   );
   const mk = (rm: Room, type: Task["type"], title: string, status: Task["status"], prio: Task["priority"], assignee?: string) => {

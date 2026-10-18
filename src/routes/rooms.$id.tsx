@@ -1,11 +1,14 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useState } from "react";
 import { ArrowRight, BedDouble, CalendarDays, IdCard, Mail, Phone, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader, Pill, Section, StatusPill } from "@/components/stay/kit";
+import { ExceptionDialog } from "@/components/stay/ExceptionDialog";
 import {
   activeStayOnBed,
   can,
   DEMO_TODAY,
+  fillFirstToday,
   roomBookedUp,
   roomFreeFrom,
   invoiceBalance,
@@ -38,12 +41,16 @@ function RoomDetail() {
   const t = useT();
   const fmt = useDate();
   const money = useMoney();
+  const navigate = useNavigate();
+  const [asking, setAsking] = useState(false);
   const room = s.rooms.find((r) => r.id === id);
   if (!room) return <p>{t("الغرفة غير موجودة", "Room not found")}</p>;
   const prop = s.properties.find((p) => p.id === room.propertyId)!;
   const building = s.buildings.find((b) => b.id === room.buildingId)!;
   const genders = roomGenders(s, room.id);
   const freeDay = roomFreeFrom(s, room.id);
+  // An empty shared student room waiting for partly occupied rooms of its type to fill.
+  const waitsFor = fillFirstToday(s, room.id).waitsFor;
   // In bed-number order, so the list matches the physical beds.
   const beds = s.beds.filter((b) => b.roomId === room.id);
 
@@ -68,6 +75,9 @@ function RoomDetail() {
                 <Button disabled title={t("الغرفة محجوبة للصيانة", "Blocked for maintenance")}><Plus className="size-4" />{t("حجز جديد", "New booking")} · {t("محجوبة للصيانة", "under maintenance")}</Button>
               ) : roomBookedUp(s, room.id) ? (
                 <Button disabled><Plus className="size-4" />{t(`محجوزة حتى ${fmt(addDays(freeDay, -1))}`, `Booked until ${fmt(addDays(freeDay, -1))}`)}</Button>
+              ) : waitsFor.length > 0 && freeDay <= DEMO_TODAY ? (
+                // A waiting room asks for the exception first, then opens the booking with it approved.
+                <Button onClick={() => setAsking(true)}><Plus className="size-4" />{t("حجز (يحتاج إذن)", "Book (needs approval)")}</Button>
               ) : (
                 // An occupied room books ahead from the day it frees up.
                 <Button asChild>
@@ -83,6 +93,19 @@ function RoomDetail() {
           </>
         }
       />
+      {asking && (
+        <ExceptionDialog
+          rooms={[room]}
+          onClose={() => setAsking(false)}
+          onOpen={(exception) => navigate({ to: "/bookings/new", search: { room: room.id }, state: { exception } })}
+        />
+      )}
+      {waitsFor.length > 0 && (
+        <p className="mb-4 rounded-lg border border-info/30 bg-info-soft p-3 text-sm">
+          {t("الغرفة في الانتظار: تُملأ أولًا الغرف المشغولة جزئيًا من نفس النوع:", "This room is waiting; partly occupied rooms of its type fill first:")}{" "}
+          {waitsFor.map((w) => `${w.room.code}${w.gender ? ` (${w.gender === "female" ? t("بنات", "girls") : t("أولاد", "boys")})` : ""}`).join("، ")}
+        </p>
+      )}
       <Section title={t("الأسرة والسكان الحاليون", "Beds & current residents")}>
         <div className="grid gap-3 md:grid-cols-2">
           {beds.map((bed) => {

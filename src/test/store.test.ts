@@ -3,8 +3,12 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   actions,
   activeStayOnBed,
+  bookableBeds,
   checkoutSettlement,
   DEMO_TODAY,
+  fillFirstRooms,
+  OVERRIDE_CODE,
+  roomPartlyTaken,
   getState,
   inspectionChecklist,
   invoiceBalance,
@@ -34,8 +38,10 @@ const guest = (name = "ضيف تجريبي", nationalId = `299${String(++nid).pa
   idNumber: nationalId,
 });
 
+// These tests are about other rules, so they may open an empty room ahead of fill-first (tested on its own).
 function book(bedId: string, start: string, end: string, planId = "pl-month", g = guest()) {
-  const res = actions.createBooking({ guest: g, bedId, start, end, planId });
+  const roomId = getState().beds.find((b) => b.id === bedId)!.roomId;
+  const res = actions.createBooking({ guest: g, bedId, start, end, planId, override: { roomId, reason: "اختبار", code: OVERRIDE_CODE } });
   if (!res.ok) throw new Error(res.error);
   return res.data!;
 }
@@ -357,6 +363,49 @@ describe("room gender", () => {
   it("is empty for a vacant room", () => {
     checkOutClean(bookingOn(BED1).id);
     expect(roomGenders(getState(), ROOM).size).toBe(0);
+  });
+});
+
+describe("fill-first in student housing", () => {
+  // A month nobody is booked in yet; one quad gets a resident, another stays empty.
+  const start = "2028-01-01";
+  const end = "2028-01-31";
+  const quads = () => getState().rooms.filter((r) => r.propertyId === "p1" && r.type === "quad" && r.hk === "ready");
+  const bedsOf = (roomId: string) => getState().beds.filter((b) => b.roomId === roomId).map((b) => b.id);
+  let partly: string;
+  let empty: string;
+  beforeEach(() => {
+    [partly, empty] = quads().map((r) => r.id);
+    book(bedsOf(partly)[0], start, end);
+  });
+
+  it("holds an empty room while partly filled rooms of its type have space", () => {
+    expect(roomPartlyTaken(getState(), partly, start, end, "pl-month")).toBe(true);
+    expect(fillFirstRooms(getState(), empty, start, end, "pl-month", "male").map((r) => r.id)).toContain(partly);
+    const res = actions.createBooking({ guest: guest(), bedId: bedsOf(empty)[0], start, end, planId: "pl-month" });
+    expect(res.ok).toBe(false);
+  });
+
+  it("books a partly filled room without an exception", () => {
+    expect(actions.createBooking({ guest: guest(), bedId: bedsOf(partly)[1], start, end, planId: "pl-month" }).ok).toBe(true);
+  });
+
+  it("doesn't hold the room for the other gender, who can't share the partly filled one", () => {
+    expect(fillFirstRooms(getState(), empty, start, end, "pl-month", "female").map((r) => r.id)).not.toContain(partly);
+  });
+
+  it("opens an empty room with the manager's code, the room and a reason", () => {
+    const bed = bedsOf(empty)[0];
+    const book1 = (override: { roomId: string; reason: string; code: string }) =>
+      actions.createBooking({ guest: guest(), bedId: bed, start, end, planId: "pl-month", override });
+    expect(book1({ roomId: empty, reason: "مجموعة أصحاب", code: "0000" }).ok).toBe(false);
+    expect(book1({ roomId: partly, reason: "مجموعة أصحاب", code: OVERRIDE_CODE }).ok).toBe(false);
+    expect(book1({ roomId: empty, reason: "  ", code: OVERRIDE_CODE }).ok).toBe(false);
+    // The code stands in for the manager's approval, so the front desk can use it too.
+    actions.setRole("frontdesk");
+    const res = book1({ roomId: empty, reason: "مجموعة أصحاب", code: OVERRIDE_CODE });
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.data!.events.at(-1)!.text).toContain("مجموعة أصحاب");
   });
 });
 

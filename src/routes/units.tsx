@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PageHeader, Pill, Section, StatusPill, run } from "@/components/stay/kit";
-import { actions, activeStayOnBed, can, DEMO_TODAY, guestName, roomGenders, roomStatus, upcomingBookingOnBed, useDemo } from "@/lib/demo/store";
+import { actions, activeStayOnBed, fillFirstToday, can, DEMO_TODAY, guestName, roomGenders, roomStatus, upcomingBookingOnBed, useDemo } from "@/lib/demo/store";
 import { UNIT_STATUS, useNum, useT } from "@/lib/demo/ui";
 import { meta } from "@/lib/demo/meta";
 import type { Room, RoomType } from "@/lib/demo/types";
@@ -52,7 +52,14 @@ function Units() {
   const sizes = ROOM_SIZE.filter(([k]) => s.rooms.some((r) => r.propertyId === pid && roomSize(r) === k));
   const [block, setBlock] = useState<string | null>(null);
   const [reason, setReason] = useState("");
-  const rooms = s.rooms.filter((r) => r.propertyId === pid && (!q || r.code.includes(q.toUpperCase())) && (st === "all" || roomStatus(s, r.id) === st) && (type === "all" || roomSize(r) === type));
+  // Fill-first as of today (student housing): rooms to fill first, and empty rooms waiting for them.
+  const fill = new Map(s.rooms.filter((r) => r.propertyId === pid).map((r) => [r.id, fillFirstToday(s, r.id)]));
+  const priorityCount = [...fill.values()].filter((f) => f.priority).length;
+  const waitingCount = [...fill.values()].filter((f) => f.waitsFor.length > 0).length;
+  const fillFirst = priorityCount > 0 || waitingCount > 0;
+  const matches = (r: Room) =>
+    st === "all" || (st === "priority" ? fill.get(r.id)!.priority : st === "waiting" ? fill.get(r.id)!.waitsFor.length > 0 : roomStatus(s, r.id) === st);
+  const rooms = s.rooms.filter((r) => r.propertyId === pid && (!q || r.code.includes(q.toUpperCase())) && matches(r) && (type === "all" || roomSize(r) === type));
   const buildings = s.buildings.filter((b) => b.propertyId === pid);
   // Each property's rooms share one kind (beds, hotel rooms or apartments), so the legend follows it.
   const legendType = s.rooms.find((r) => r.propertyId === pid)?.type;
@@ -72,11 +79,17 @@ function Units() {
         <div className="mb-4 flex flex-wrap gap-2">
           <Select value={pid} onValueChange={(v) => { setPid(v); setType("all"); }}><SelectTrigger className="w-56"><SelectValue /></SelectTrigger><SelectContent>{s.properties.map((p) => <SelectItem key={p.id} value={p.id}>{t(p.name, p.nameEn)}</SelectItem>)}</SelectContent></Select>
           <Input className="w-40" placeholder={t("رقم الغرفة", "Room code")} value={q} onChange={(e) => setQ(e.target.value)} />
-          <Select value={st} onValueChange={setSt}><SelectTrigger className="w-48"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">{t("كل الحالات", "All")}</SelectItem>{Object.entries(UNIT_STATUS).map(([k, v]) => <SelectItem key={k} value={k}>{t(v[0], v[1])}</SelectItem>)}</SelectContent></Select>
+          <Select value={st} onValueChange={setSt}><SelectTrigger className="w-48"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">{t("كل الحالات", "All")}</SelectItem>{Object.entries(UNIT_STATUS).map(([k, v]) => <SelectItem key={k} value={k}>{t(v[0], v[1])}</SelectItem>)}{fillFirst && <><SelectItem value="priority">{t("مُوصى بها", "Recommended")}</SelectItem><SelectItem value="waiting">{t("إذن فتح", "Needs approval")}</SelectItem></>}</SelectContent></Select>
           {sizes.length > 1 && (
             <Select value={type} onValueChange={setType}><SelectTrigger className="w-40"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">{t("كل الأنواع", "All types")}</SelectItem>{sizes.map(([k, ar, en]) => <SelectItem key={k} value={k}>{t(ar, en)}</SelectItem>)}</SelectContent></Select>
           )}
         </div>
+        {fillFirst && (
+          <p className="mb-4 rounded-lg border border-info/30 bg-info-soft p-3 text-sm">
+            {t("تُملأ الغرف المشغولة جزئيًا أولًا، والغرف الفاضية تُفتح بعد امتلاء الغرف من نفس النوع. فتح غرفة فاضية قبلها يحتاج استثناء.", "Partly occupied rooms are filled first; empty rooms open once rooms of the same type are full. Opening an empty room earlier needs an exception.")}
+            <span className="mt-1 block font-medium">{t(`${num(priorityCount)} غرفة مُوصى بها · ${num(waitingCount)} غرفة إذن فتح`, `${priorityCount} recommended · ${waitingCount} need approval`)}</span>
+          </p>
+        )}
         {buildings.map((b) => {
           const br = rooms.filter((r) => r.buildingId === b.id);
           if (!br.length) return null;
@@ -98,6 +111,7 @@ function Units() {
                     .sort((a, b) => a.start.localeCompare(b.start));
                   // Occupied, then upcoming, then free, so they sit in that order from the start (right in Arabic).
                   const rank = (bedId: string) => (activeStayOnBed(s, bedId) ? 0 : upcomingBookingOnBed(s, bedId) ? 1 : 2);
+                  const { priority, waitsFor } = fill.get(r.id)!;
                   return (
                     <div
                       key={r.id}
@@ -108,9 +122,9 @@ function Units() {
                       onKeyDown={(e: React.KeyboardEvent) => e.key === "Enter" && navigate({ to: "/rooms/$id", params: { id: r.id } })}
                       className="cursor-pointer rounded-xl border p-3 transition hover:border-primary/50 hover:shadow-sm"
                     >
-                      <div className="flex items-center justify-between"><b>{r.code}</b>{can(s.role, "unit.edit") && r.hk === "ready" && <button title={t("حجب للصيانة", "Block")} onClick={(e) => { e.stopPropagation(); setBlock(r.id); }}><Lock className="size-3.5 text-muted-foreground hover:text-destructive" /></button>}</div>
+                      <div className="flex items-center justify-between"><span className="flex items-center gap-3"><b className="whitespace-nowrap">{r.code}</b>{priority && <Pill tone="primary" className="whitespace-nowrap">{t("مُوصى بها", "Recommended")}</Pill>}{waitsFor.length > 0 && <Pill className="whitespace-nowrap">{t("إذن فتح", "Needs approval")}</Pill>}</span>{can(s.role, "unit.edit") && r.hk === "ready" && <button title={t("حجب للصيانة", "Block")} onClick={(e) => { e.stopPropagation(); setBlock(r.id); }}><Lock className="size-3.5 text-muted-foreground hover:text-destructive" /></button>}</div>
                       {(r.type === "apartment" || r.type === "hotel") && <p className="text-xs text-muted-foreground">{r.type === "apartment" ? t(`شقة ${size(r.sleeps)}`, `Apartment (${size(r.sleeps)})`) : t(`غرفة ${size(r.sleeps)}`, `Room (${size(r.sleeps)})`)}</p>}
-                      <div className="my-2 flex flex-wrap gap-1">{[...beds].sort((x, y) => rank(x.id) - rank(y.id)).map((bd) => { const st2 = activeStayOnBed(s, bd.id); const bk = st2 && s.bookings.find((x) => x.id === st2.bookingId); const next = !st2 && upcomingBookingOnBed(s, bd.id); return <span key={bd.id} title={bk ? guestName(s, bk.guestId) : next ? `${bd.label} · ${t("حجز قادم", "Upcoming")} ${next.code} ${shortDate(next.start)}` : bd.label}><UnitIcon type={r.type} className={cn("size-5", st2 ? "text-muted-foreground/60" : r.hk !== "ready" ? "text-warning" : next ? "text-info" : "text-success")} /></span>; })}</div>
+                      <div className="my-2 flex flex-wrap gap-1">{[...beds].sort((x, y) => rank(x.id) - rank(y.id)).map((bd) => { const st2 = activeStayOnBed(s, bd.id); const bk = st2 && s.bookings.find((x) => x.id === st2.bookingId); const next = !st2 && upcomingBookingOnBed(s, bd.id); return <span key={bd.id} title={bk ? guestName(s, bk.guestId) : next ? `${bd.label} · ${t("حجز قادم", "Upcoming")} ${next.code} ${shortDate(next.start)}` : bd.label}><UnitIcon type={r.type} className={cn("size-5", st2 ? "text-muted-foreground/60" : r.hk !== "ready" ? "text-warning" : next ? "text-info" : waitsFor.length ? "text-success/40" : "text-success")} /></span>; })}</div>
                       <div className="flex flex-wrap items-center gap-1.5">
                         <StatusPill map={UNIT_STATUS} value={status} />
                         {girls && <Pill tone="female">{t("بنات فقط", "Female only")}</Pill>}
@@ -130,7 +144,7 @@ function Units() {
             </div>
           );
         })}
-        <div className="flex flex-wrap gap-4 text-xs text-muted-foreground"><span className="flex items-center gap-1"><UnitIcon type={legendType} className="size-4 text-muted-foreground/60" />{t("مشغول", "Occupied")}</span><span className="flex items-center gap-1"><UnitIcon type={legendType} className="size-4 text-success" />{t("متاح", "Free")}</span><span className="flex items-center gap-1"><UnitIcon type={legendType} className="size-4 text-info" />{t("متاح وعليه حجز قادم", "Free, upcoming booking")}</span><span className="flex items-center gap-1"><UnitIcon type={legendType} className="size-4 text-warning" />{t("غير جاهز", "Not ready")}</span><Pill>{t("حجب الوحدات متاح لمدير المنشأة والإدارة العليا", "Blocking: managers only")}</Pill></div>
+        <div className="flex flex-wrap gap-4 text-xs text-muted-foreground"><span className="flex items-center gap-1"><UnitIcon type={legendType} className="size-4 text-muted-foreground/60" />{t("مشغول", "Occupied")}</span><span className="flex items-center gap-1"><UnitIcon type={legendType} className="size-4 text-success" />{t("متاح", "Free")}</span><span className="flex items-center gap-1"><UnitIcon type={legendType} className="size-4 text-info" />{t("متاح وعليه حجز قادم", "Free, upcoming booking")}</span><span className="flex items-center gap-1"><UnitIcon type={legendType} className="size-4 text-warning" />{t("غير جاهز", "Not ready")}</span>{fillFirst && <span className="flex items-center gap-1"><UnitIcon type={legendType} className="size-4 text-success/40" />{t("إذن فتح (الملء أولًا)", "Needs approval (fill first)")}</span>}<Pill>{t("حجب الوحدات متاح لمدير المنشأة والإدارة العليا", "Blocking: managers only")}</Pill></div>
       </Section>
       <Dialog open={!!block} onOpenChange={(o) => !o && setBlock(null)}>
         <DialogContent>

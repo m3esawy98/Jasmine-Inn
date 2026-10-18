@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useLocation, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { AlertCircle, BedDouble, Check, CheckCircle2, ChevronLeft, ChevronRight, Info, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PageHeader, Pill, Section } from "@/components/stay/kit";
 import { GuestIdFields } from "@/components/stay/GuestIdFields";
-import { actions, activeStayOnBed, bedConflict, bookableBeds, can, DEMO_TODAY, getState, planForRoom, roomFreeFrom, roomGenders, roomUnavailableReason, useDemo } from "@/lib/demo/store";
+import { ExceptionDialog, type RoomException } from "@/components/stay/ExceptionDialog";
+import { actions, activeStayOnBed, bedConflict, bookableBeds, can, DEMO_TODAY, fillFirstRooms, getState, planForRoom, roomFreeFrom, roomGenders, roomPartlyTaken, roomUnavailableReason, useDemo } from "@/lib/demo/store";
 import { addDays, addMonths, computeRent, validRange } from "@/lib/demo/calc";
 import { useMoney, useT } from "@/lib/demo/ui";
 import { meta } from "@/lib/demo/meta";
@@ -101,8 +102,16 @@ function BookingWizard({ scenarioMode, fromRoomId }: { scenarioMode: boolean; fr
       g.gender && datesOk
         ? s.rooms
             .filter((r) => r.propertyId === propertyId)
-            .map((r) => ({ room: r, free: bookableBeds(s, r.id, start, end, planId, g.gender as Gender), total: s.beds.filter((b) => b.roomId === r.id).length }))
+            .map((r) => ({
+              room: r,
+              free: bookableBeds(s, r.id, start, end, planId, g.gender as Gender),
+              total: s.beds.filter((b) => b.roomId === r.id).length,
+              // Fill-first (student housing): partly filled rooms are recommended, empty ones wait for them.
+              partly: roomPartlyTaken(s, r.id, start, end, planId),
+              waitsFor: fillFirstRooms(s, r.id, start, end, planId, g.gender as Gender),
+            }))
             .filter((x) => x.free.length > 0 || x.room.id === roomId)
+            .sort((a, b) => Number(b.partly) - Number(a.partly) || Number(a.waitsFor.length > 0) - Number(b.waitsFor.length > 0))
         : [],
     [s, propertyId, start, end, planId, g.gender, datesOk, roomId],
   );
@@ -119,6 +128,15 @@ function BookingWizard({ scenarioMode, fromRoomId }: { scenarioMode: boolean; fr
   }, [s, roomId, start, end, planId, g.gender, mine]);
   const sel = bedStatus.find((x) => x.bed.id === bedId);
   const allowed = can(s.role, "booking.create");
+  // Opening an empty room before the partly filled ones: the manager's code, the room and a reason.
+  // An exception approved on the room's page arrives in the navigation state (kept out of the URL).
+  const passed = useLocation().state.exception;
+  const [exception, setException] = useState<RoomException | null>(passed && passed.roomId === fromRoomId ? passed : null);
+  const [asking, setAsking] = useState<{ id: string; code: string }[] | null>(null);
+  const waitsFor = (rid: string | null) => (rid && g.gender && datesOk ? fillFirstRooms(s, rid, start, end, planId, g.gender) : []);
+  const opened = (rid: string | null) => !!rid && exception?.roomId === rid;
+  const roomHeld = waitsFor(roomId).length > 0;
+  const codes = (rooms: { code: string }[]) => rooms.slice(0, 3).map((r) => r.code).join("، ") + (rooms.length > 3 ? "…" : "");
 
   // Changing an earlier step invalidates the choices made after it; a fixed room stays, only its bed is re-picked.
   const resetRoom = () => { if (!fixedId) setRoom(null); setBed(""); };
@@ -129,6 +147,7 @@ function BookingWizard({ scenarioMode, fromRoomId }: { scenarioMode: boolean; fr
   const fixed = s.rooms.find((r) => r.id === fixedId);
   const fixedWhole = !!fixed && s.beds.filter((b) => b.roomId === fixed.id).length === 1;
   const unavailable = fixed && g.gender && datesOk ? roomUnavailableReason(s, fixed.id, start, end, planId, g.gender) : undefined;
+  const fixedWaitsFor = fixed && !unavailable ? waitsFor(fixed.id) : [];
   // In a fixed shared room, the housing type its residents for these dates rule out (e.g. boys in a girls' room).
   const blockedGender = (v: Gender) => !!fixed && datesOk && roomUnavailableReason(s, fixed.id, start, end, planId, v) === "gender";
   // A fixed room skips choosing the room, and a whole unit (one bookable place) skips choosing the bed too.
@@ -142,8 +161,8 @@ function BookingWizard({ scenarioMode, fromRoomId }: { scenarioMode: boolean; fr
   const prevStep = [...visible].reverse().find((i) => i < step);
   // Whether each step (but the last) is complete enough to move past it.
   const ready = [
-    !!g.gender && datesOk && !unavailable,
-    !!room,
+    !!g.gender && datesOk && !unavailable && (fixedWaitsFor.length === 0 || opened(fixed!.id)),
+    !!room && (!roomHeld || opened(roomId)),
     !!sel && (!sel.blocked || sel.own),
     !!g.name.trim() && !!g.phone.trim() && !!g.idNumber.trim(),
   ];
@@ -152,7 +171,7 @@ function BookingWizard({ scenarioMode, fromRoomId }: { scenarioMode: boolean; fr
   const save = () => {
     const kind = s.properties.find((p) => p.id === propertyId)?.type === "student" ? "student" : "guest";
     if (!g.gender || !bedId) return;
-    const res = actions.createBooking({ guest: { ...g, gender: g.gender, kind }, bedId, start, end, planId, scenario: scenarioMode });
+    const res = actions.createBooking({ guest: { ...g, gender: g.gender, kind }, bedId, start, end, planId, scenario: scenarioMode, override: roomHeld && exception ? exception : undefined });
     if (!res.ok) { setError(res.error); toast.error(res.error); return; }
     setError(null);
     setSaved({ id: res.data!.id, code: res.data!.code, key });
@@ -173,6 +192,13 @@ function BookingWizard({ scenarioMode, fromRoomId }: { scenarioMode: boolean; fr
         subtitle={t("مرحلة الحجز: حجز سرير لفترة محددة. المستندات والدفع تُستكمل لاحقًا عند التسكين.", "Booking stage: reserve a bed for a period. Documents and payment are completed at check-in.")}
       />
       {!allowed && <RoleNote />}
+      {asking && (
+        <ExceptionDialog
+          rooms={asking}
+          onClose={() => setAsking(null)}
+          onOpen={(e) => { setException(e); setAsking(null); if (!fixed) pickRoom(e.roomId); }}
+        />
+      )}
       {error && (
         <div className="mb-4 flex gap-3 rounded-xl border border-destructive/30 bg-destructive-soft p-4 text-sm text-destructive">
           <ShieldAlert className="size-5 shrink-0" />
@@ -236,6 +262,16 @@ function BookingWizard({ scenarioMode, fromRoomId }: { scenarioMode: boolean; fr
                   <Field label={t("نهاية الإقامة", "End")}><Input type="date" value={end} onChange={(e) => { setEnd(e.target.value); resetRoom(); }} /></Field>
                 </div>
                 {!datesOk && <p className="text-xs text-destructive">{t("تواريخ الإقامة غير صحيحة لهذه الخطة", "Dates are not valid for this plan")}</p>}
+                {fixed && fixedWaitsFor.length > 0 && (
+                  <div className="space-y-2 rounded-lg border border-info/30 bg-info-soft p-3 text-sm">
+                    <p>{t(`${fixed.code} فاضية، وفيه غرف من نفس النوع مشغولة جزئيًا تُملأ أولًا: ${codes(fixedWaitsFor)}.`, `${fixed.code} is empty, and rooms of its type are partly filled and come first: ${codes(fixedWaitsFor)}.`)}</p>
+                    {opened(fixed.id) ? (
+                      <p className="font-medium text-success">{t(`تم فتح ${fixed.code} باستثناء: ${exception!.reason}`, `${fixed.code} opened by exception: ${exception!.reason}`)}</p>
+                    ) : (
+                      <Button variant="outline" size="sm" onClick={() => setAsking([fixed])}>{t("فتح غرفة فاضية (استثناء)", "Open an empty room (exception)")}</Button>
+                    )}
+                  </div>
+                )}
                 {fixed && unavailable && (
                   <p className="flex items-center gap-2 rounded-lg bg-destructive-soft p-3 text-sm text-destructive">
                     <AlertCircle className="size-4 shrink-0" />
@@ -266,18 +302,30 @@ function BookingWizard({ scenarioMode, fromRoomId }: { scenarioMode: boolean; fr
                   <p className="mb-3 text-xs text-muted-foreground">
                     {t(`${num(roomOptions.length)} غرفة متاحة ${g.gender === "male" ? "لسكن الأولاد" : "لسكن البنات"} من ${start} إلى ${end}`, `${roomOptions.length} rooms open to ${g.gender === "male" ? "boys" : "girls"}, ${start} → ${end}`)}
                   </p>
+                  {roomOptions.some((x) => x.waitsFor.length > 0) && (
+                    <div className="mb-3 space-y-2 rounded-lg border border-info/30 bg-info-soft p-3 text-sm">
+                      <p>{t("تُملأ الغرف المشغولة جزئيًا أولًا؛ الغرف الفاضية تُفتح بعد امتلاء الغرف الحالية من نفس النوع.", "Partly filled rooms are filled first; empty rooms open once those of the same type are full.")}</p>
+                      <Button variant="outline" size="sm" onClick={() => setAsking(roomOptions.filter((x) => x.waitsFor.length > 0).map((x) => x.room))}>{t("فتح غرفة فاضية (استثناء)", "Open an empty room (exception)")}</Button>
+                    </div>
+                  )}
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
-                    {roomOptions.map(({ room: r, free, total }) => (
+                    {roomOptions.map(({ room: r, free, total, partly, waitsFor: before }) => (
                       <button
                         key={r.id}
                         type="button"
+                        disabled={before.length > 0 && !opened(r.id)}
                         onClick={() => pickRoom(r.id)}
-                        className={cn("rounded-xl border bg-success-soft p-3 text-start transition", r.id === roomId ? "border-primary ring-2 ring-primary/30" : "hover:border-primary/40")}
+                        className={cn(
+                          "rounded-xl border p-3 text-start transition disabled:cursor-not-allowed disabled:opacity-60",
+                          before.length > 0 ? "bg-muted/40" : "bg-success-soft",
+                          r.id === roomId ? "border-primary ring-2 ring-primary/30" : "hover:border-primary/40",
+                        )}
                       >
-                        <p className="text-sm font-semibold">{r.code}</p>
+                        <p className="flex items-center justify-between gap-1 text-sm font-semibold">{r.code}{partly && <Pill tone="primary">{t("مُوصى بها", "Recommended")}</Pill>}</p>
                         <p className="text-xs text-muted-foreground">{t("مبنى", "Building")} {buildingName(r.buildingId)} · {t(...ROOM_TYPE[r.type])}{r.type === "hotel" && ` · ${r.sleeps === 1 ? t("فردي", "single") : t("ثنائي", "double")}`}</p>
                         {/* A hotel room or apartment is booked whole, so it has no beds to count. */}
                         <p className="mt-1 text-xs text-success">{r.type === "hotel" || r.type === "apartment" ? t("متاحة", "Free") : t(`${num(free.length)} من ${num(total)} سرير متاح`, `${free.length}/${total} beds free`)}</p>
+                        {before.length > 0 && <p className="mt-1 text-xs text-muted-foreground">{t(`تُفتح بعد امتلاء ${codes(before)}`, `Opens once ${codes(before)} fill up`)}</p>}
                       </button>
                     ))}
                   </div>
@@ -334,6 +382,7 @@ function BookingWizard({ scenarioMode, fromRoomId }: { scenarioMode: boolean; fr
                   <D k={t("المنشأة", "Property")} v={property ? t(property.name, property.nameEn) : "—"} />
                   <D k={t("الغرفة والسرير", "Room & bed")} v={`${room.code} / ${sel?.bed.label ?? "—"}`} />
                   <D k={t("فترة الإقامة", "Period")} v={`${start} → ${end}`} />
+                  {roomHeld && opened(roomId) && <D k={t("استثناء الملء أولًا", "Fill-first exception")} v={exception!.reason} />}
                   <D k={t("خطة السعر", "Plan")} v={t(plan.name, plan.nameEn)} />
                 </dl>
                 {sel?.own ? (
@@ -399,3 +448,4 @@ function Row({ k, v }: { k: React.ReactNode; v: React.ReactNode }) {
 function D({ k, v }: { k: string; v: React.ReactNode }) {
   return <div><dt className="text-xs text-muted-foreground">{k}</dt><dd className="mt-0.5 font-medium">{v}</dd></div>;
 }
+
