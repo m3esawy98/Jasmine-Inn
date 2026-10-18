@@ -47,13 +47,13 @@ function confirmAndCheckIn(b: Booking) {
   expect(res).toEqual({ ok: true });
 }
 
-/** A hotel bed with no bookings at all, so tests don't depend on the random seed layout. */
+/** A double hotel room (booked on the "pl-night" double rate) with no bookings at all, so tests don't depend on the random seed layout. */
 function freeHotelBed() {
   const s = getState();
   const bed = s.beds.find((b) => {
     const room = s.rooms.find((r) => r.id === b.roomId)!;
     return (
-      room.propertyId === "p2" && room.hk === "ready" && !s.bookings.some((x) => x.bedId === b.id)
+      room.propertyId === "p2" && room.sleeps === 2 && room.hk === "ready" && !s.bookings.some((x) => x.bedId === b.id)
     );
   });
   if (!bed) throw new Error("no free hotel bed in seed");
@@ -106,6 +106,13 @@ describe("availability", () => {
       planId: "pl-night",
     });
     expect(res.ok).toBe(false);
+  });
+
+  it("books a hotel room only on the night rate for its size", () => {
+    const bed = freeHotelBed();
+    const res = actions.createBooking({ guest: guest(), bedId: bed, start: "2026-12-01", end: "2026-12-03", planId: "pl-night-single" });
+    expect(res.ok).toBe(false);
+    expect(() => book(bed, "2026-12-01", "2026-12-03", "pl-night")).not.toThrow();
   });
 
   it("treats a monthly end date as the last occupied day", () => {

@@ -19,7 +19,7 @@ import type {
 import { addDays, addMonths, computeRent } from "./calc";
 
 export const DEMO_TODAY = "2026-11-01";
-export const STATE_VERSION = 9;
+export const STATE_VERSION = 10;
 
 function rng(seed: number) {
   let s = seed;
@@ -62,13 +62,13 @@ export function createSeed(): DemoState {
   ];
   const rooms: Room[] = [];
   const beds: Bed[] = [];
-  const addRoom = (b: Building, floor: number, idx: number, type: RoomType) => {
+  const addRoom = (b: Building, floor: number, idx: number, type: RoomType, sleepsOverride?: number) => {
     const code = `${b.name}-${floor}${String(idx).padStart(2, "0")}`;
     const id = `r-${code}`;
     const amen =
       type === "apartment" ? ["غرفتا نوم", "مطبخ", "صالة"] : type === "hotel" ? ["تكييف", "تلفاز", "ميني بار"] : ["تكييف", "مكاتب مذاكرة", "خزائن"];
     const n = type === "quad" ? 4 : type === "double" ? 2 : 1;
-    const sleeps = type === "apartment" ? 4 : type === "hotel" ? 2 : n;
+    const sleeps = sleepsOverride ?? (type === "apartment" ? 4 : type === "hotel" ? 2 : n);
     rooms.push({ id, propertyId: b.propertyId, buildingId: b.id, code, floor, type, sleeps, hk: "ready", amenities: amen });
     for (let i = 1; i <= n; i++) beds.push({ id: `${id}-${i}`, roomId: id, label: n === 1 ? (type === "single" ? "سرير 1" : "الوحدة") : `سرير ${i}` });
   };
@@ -82,7 +82,8 @@ export function createSeed(): DemoState {
         addRoom(b, f, 5, "quad");
         addRoom(b, f, 6, "quad");
       } else if (b.propertyId === "p2") {
-        for (let i = 1; i <= 8; i++) addRoom(b, f, i, "hotel");
+        // Rooms 01–03 on each floor are singles, the rest doubles.
+        for (let i = 1; i <= 8; i++) addRoom(b, f, i, "hotel", i <= 3 ? 1 : 2);
       } else {
         for (let i = 1; i <= 4; i++) addRoom(b, f, i, "apartment");
       }
@@ -92,7 +93,8 @@ export function createSeed(): DemoState {
   const plans: Plan[] = [
     { id: "pl-month", name: "شهري - سكن طلبة", nameEn: "Monthly - Student", period: "monthly", price: 6000, deposit: 3000 },
     { id: "pl-sem", name: "فصل دراسي (4 أشهر)", nameEn: "Semester (4 months)", period: "semester", price: 22000, deposit: 3000 },
-    { id: "pl-night", name: "ليلة فندقية", nameEn: "Hotel night", period: "daily", price: 2200, deposit: 0 },
+    { id: "pl-night-single", name: "ليلة فندقية - فردي", nameEn: "Hotel night - Single", period: "daily", price: 1600, deposit: 0, roomSleeps: 1 },
+    { id: "pl-night", name: "ليلة فندقية - ثنائي", nameEn: "Hotel night - Double", period: "daily", price: 2200, deposit: 0, roomSleeps: 2 },
     { id: "pl-week", name: "أسبوعي - شقة فندقية", nameEn: "Weekly - Apartment", period: "weekly", price: 14000, deposit: 5000 },
     { id: "pl-apt-month", name: "شهري - شقة فندقية", nameEn: "Monthly - Apartment", period: "monthly", price: 42000, deposit: 15000 },
   ];
@@ -247,24 +249,25 @@ export function createSeed(): DemoState {
         makeBooking(bed, "pl-sem", "2027-02-01", "2027-05-31", "pending", "student");
       }
     } else if (room.propertyId === "p2") {
+      const night = room.sleeps === 1 ? "pl-night-single" : "pl-night";
       const x = r();
       if (x < 0.55) {
         const start = addDays(DEMO_TODAY, -Math.floor(r() * 5) - 1);
         const end = addDays(DEMO_TODAY, Math.floor(r() * 4));
-        const { b, inv } = makeBooking(bed, "pl-night", start, end, "checked_in", "guest");
+        const { b, inv } = makeBooking(bed, night, start, end, "checked_in", "guest");
         stays.push({ id: `st${++c.ST}`, bookingId: b.id, bedId: bed.id, checkIn: start, checkInAt: `${start}T15:00:00`, status: "active" });
         pay(inv!, r() < 0.6 ? b.rent : Math.round(b.rent / 2), start, r() < 0.5 ? "online_demo" : "cash");
       } else if (x < 0.65) {
-        makeBooking(bed, "pl-night", DEMO_TODAY, addDays(DEMO_TODAY, 3), "confirmed", "guest");
+        makeBooking(bed, night, DEMO_TODAY, addDays(DEMO_TODAY, 3), "confirmed", "guest");
       } else if (x < 0.72) {
-        makeBooking(bed, "pl-night", addDays(DEMO_TODAY, 6), addDays(DEMO_TODAY, 9), "pending", "guest");
+        makeBooking(bed, night, addDays(DEMO_TODAY, 6), addDays(DEMO_TODAY, 9), "pending", "guest");
       }
       // past closed stays for history
       if (r() < 0.6) {
         const s = addDays("2026-06-01", Math.floor(r() * 120));
         const e = addDays(s, 2 + Math.floor(r() * 5));
         if (e < addDays(DEMO_TODAY, -7)) {
-          const { b, inv } = makeBooking(bed, "pl-night", s, e, "checked_out", "guest");
+          const { b, inv } = makeBooking(bed, night, s, e, "checked_out", "guest");
           stays.push({ id: `st${++c.ST}`, bookingId: b.id, bedId: bed.id, checkIn: s, checkInAt: `${s}T15:00:00`, checkOut: e, checkOutAt: `${e}T11:00:00`, status: "closed" });
           pay(inv!, b.rent, s, "online_demo");
         }

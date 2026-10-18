@@ -222,8 +222,9 @@ function BookingWizard({ scenarioMode }: { scenarioMode: boolean }) {
                         className={cn("rounded-xl border bg-success-soft p-3 text-start transition", r.id === roomId ? "border-primary ring-2 ring-primary/30" : "hover:border-primary/40")}
                       >
                         <p className="text-sm font-semibold">{r.code}</p>
-                        <p className="text-xs text-muted-foreground">{t("مبنى", "Building")} {buildingName(r.buildingId)} · {t(...ROOM_TYPE[r.type])}</p>
-                        <p className="mt-1 text-xs text-success">{t(`${num(free.length)} من ${num(total)} سرير متاح`, `${free.length}/${total} beds free`)}</p>
+                        <p className="text-xs text-muted-foreground">{t("مبنى", "Building")} {buildingName(r.buildingId)} · {t(...ROOM_TYPE[r.type])}{r.type === "hotel" && ` · ${r.sleeps === 1 ? t("فردي", "single") : t("ثنائي", "double")}`}</p>
+                        {/* A hotel room or apartment is booked whole, so it has no beds to count. */}
+                        <p className="mt-1 text-xs text-success">{r.type === "hotel" || r.type === "apartment" ? t("متاحة", "Free") : t(`${num(free.length)} من ${num(total)} سرير متاح`, `${free.length}/${total} beds free`)}</p>
                       </button>
                     ))}
                   </div>

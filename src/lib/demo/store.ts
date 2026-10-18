@@ -1,5 +1,5 @@
 import { useEffect, useReducer, useSyncExternalStore } from "react";
-import type { Booking, DemoState, Gender, Guest, InspectionItem, ItemCondition, NewGuest, PayMethod, Role, RoomType, Task, TaskStatus } from "./types";
+import type { Booking, DemoState, Gender, Guest, InspectionItem, ItemCondition, NewGuest, PayMethod, Plan, Role, Room, RoomType, Task, TaskStatus } from "./types";
 import { createSeed, DEMO_TODAY, ROLE_USERS, STATE_VERSION, buildSchedule } from "./seed";
 import { addMonths, computeRent, freeFrom, overlaps, validRange } from "./calc";
 
@@ -154,10 +154,14 @@ export function genderConflict(s: DemoState, bedId: string, start: string, end: 
       s.guests.find((g) => g.id === b.guestId)?.gender !== gender,
   );
 }
+/** A single or double night rate only books hotel rooms of that size; other plans fit any room. */
+export const planFitsRoom = (plan: Plan, room: Room) => !plan.roomSleeps || (room.type === "hotel" && room.sleeps === plan.roomSleeps);
 /** Beds a guest of this gender can be booked into for the period: no overlapping booking on the bed,
  *  no overlapping guest of the other gender in the same shared room, and the room not under maintenance. */
 export function bookableBeds(s: DemoState, roomId: string, start: string, end: string, planId: string, gender: Gender) {
-  if (s.rooms.find((r) => r.id === roomId)?.hk === "maintenance") return [];
+  const room = s.rooms.find((r) => r.id === roomId);
+  const plan = s.plans.find((p) => p.id === planId);
+  if (!room || room.hk === "maintenance" || (plan && !planFitsRoom(plan, room))) return [];
   return s.beds.filter(
     (b) => b.roomId === roomId && !bedConflict(s, b.id, start, end, planId) && !genderConflict(s, b.id, start, end, planId, gender),
   );
@@ -204,6 +208,7 @@ export const actions = {
     if (!bed) return { ok: false, error: "اختر سريرًا أو وحدة" };
     const room = s.rooms.find((r) => r.id === bed.roomId)!;
     if (room.hk === "maintenance") return { ok: false, error: `الوحدة ${room.code} محجوبة للصيانة ولا يمكن حجزها` };
+    if (!planFitsRoom(plan, room)) return { ok: false, error: `خطة «${plan.name}» لا تناسب الغرفة ${room.code}` };
     const conflict = bedConflict(s, bed.id, input.start, input.end, plan.id);
     if (conflict) {
       return {

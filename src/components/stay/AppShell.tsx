@@ -25,7 +25,7 @@ const NAV = [
   { to: "/units", icon: BedDouble, ar: "الغرف والشقق والأسرة", en: "Rooms & beds" },
   { to: "/bookings/new", icon: CalendarPlus, ar: "حجز جديد", en: "New booking" },
   { to: "/bookings", icon: CalendarDays, ar: "الحجوزات الحالية", en: "Current bookings" },
-  { to: "/stays", icon: KeyRound, ar: "الإقامة والتسكين", en: "Stays & check-in" },
+  { to: "/stays", icon: KeyRound, ar: "تسجيل الدخول والمغادرة", en: "Check-in & check-out" },
   { to: "/guests", icon: Users, ar: "العملاء والطلاب", en: "Guests & students" },
   { to: "/contracts", icon: FileSignature, ar: "العقود والأسعار", en: "Contracts & rates" },
   { to: "/finance", icon: Wallet, ar: "المالية والتحصيل", en: "Finance" },

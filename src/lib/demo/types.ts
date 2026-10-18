@@ -68,6 +68,8 @@ export interface Plan {
   period: PlanPeriod;
   price: number;
   deposit: number;
+  /** Only for hotel rooms that sleep this many (single or double night rate). */
+  roomSleeps?: number;
 }
 export type BookingStatus =
   | "pending"

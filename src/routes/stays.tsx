@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/stays")({
   validateSearch: (s: Record<string, unknown>) => ({ tab: s.tab === "arr" || s.tab === "in" || s.tab === "out" || s.tab === "late" ? s.tab : undefined }),
-  head: () => meta("الإقامة والتسكين", "الوصول المتوقع وتسجيل الدخول والمغادرة مع قوائم تحقق منظمة."),
+  head: () => meta("تسجيل الدخول والمغادرة", "الوصول المتوقع وتسجيل الدخول والمغادرة مع قوائم تحقق منظمة."),
   component: Stays,
 });
 
@@ -60,7 +60,7 @@ function Stays() {
   return (
     <div>
       <PageHeader
-        title={t("الإقامة والتسكين", "Stays & check-in")}
+        title={t("تسجيل الدخول والمغادرة", "Check-in & check-out")}
         subtitle={t(`اليوم ${DEMO_TODAY} · الإشغال الفعلي يبدأ عند تسجيل الدخول وينتهي عند تسجيل المغادرة.`, `Today ${DEMO_TODAY} · actual occupancy runs from check-in to check-out.`)}
       />
       <Tabs dir={s.lang === "ar" ? "rtl" : "ltr"} value={tab} onValueChange={(v) => { setTab(v); setSel(null); }}>
