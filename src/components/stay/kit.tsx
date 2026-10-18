@@ -104,7 +104,7 @@ export { DEMO_TODAY };
 /** Class for a TabsList of CardTabs: one row of equal cards, each as wide as the longest one-line name;
  *  two per row on phones, where names may wrap. */
 export const CARD_TABS =
-  "grid h-auto w-full grid-cols-2 items-stretch justify-start gap-2 bg-transparent p-0 sm:inline-grid sm:w-auto sm:auto-cols-fr sm:grid-flow-col sm:grid-cols-none";
+  "grid h-auto w-full grid-cols-2 items-stretch justify-start gap-6 bg-transparent p-0 sm:inline-grid sm:w-auto sm:auto-cols-fr sm:grid-flow-col sm:grid-cols-none";
 
 /** A tab drawn as a large card: icon at the start edge (right in Arabic), name and count centered beside it.
  *  `alert` turns it red (e.g. overdue items); without a count the name sits alone. */
