@@ -37,7 +37,7 @@ function Contracts() {
           </div>); })}</div>
       </Section>
       <Section title={t("عقود الإقامة", "Stay contracts")}>
-        <div className="overflow-x-auto"><table className="w-full text-sm">
+        <div className="overflow-x-auto overflow-y-hidden"><table className="w-full text-sm">
           <thead className="text-xs text-muted-foreground"><tr className="border-b">{[t("العقد", "Contract"), t("الطرف", "Party"), t("الوحدة", "Unit"), t("المدة", "Term"), t("التجديد خلال", "Renewal in"), t("الحالة", "Status")].map((h) => <th key={h} className="px-3 py-2 text-start font-medium">{h}</th>)}</tr></thead>
           <tbody>{s.contracts.slice().reverse().slice(0, 80).map((c) => { const b = s.bookings.find((x) => x.id === c.bookingId)!; const d = daysBetween(DEMO_TODAY, c.end); return (
             <tr key={c.id} className="border-b"><td className="px-3 py-2.5 font-semibold">{c.code}</td><td className="px-3 py-2.5"><Link to="/bookings/$id" params={{ id: b.id }} className="text-primary">{guestName(s, b.guestId)}</Link></td><td className="px-3 py-2.5">{bedLabel(s, b.bedId)}</td><td className="px-3 py-2.5 text-xs">{fmt(c.start)} — {fmt(c.end)}</td>

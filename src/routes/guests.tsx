@@ -38,7 +38,7 @@ function Guests() {
       <PageHeader title={t("العملاء والطلاب", "Guests & students")} actions={<Button disabled={!can(s.role, "guest.edit")} onClick={() => setAdd(true)}><Plus className="size-4" />{t("إضافة ملف", "Add profile")}</Button>} />
       <Section>
         <div className="relative mb-3 max-w-sm"><Search className="absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input className="ps-9" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("بحث بالاسم أو الهاتف", "Search name or phone")} /></div>
-        <div className="overflow-x-auto"><table className="w-full text-sm">
+        <div className="overflow-x-auto overflow-y-hidden"><table className="w-full text-sm">
           <thead className="text-xs text-muted-foreground"><tr className="border-b">{[t("الاسم", "Name"), t("النوع", "Type"), t("الجهة", "Org"), t("الهاتف", "Phone"), t("الحجوزات", "Bookings")].map((h) => <th key={h} className="px-3 py-2 text-start font-medium">{h}</th>)}</tr></thead>
           <tbody>{list.slice(0, 100).map((x) => (
             <tr key={x.id} className="cursor-pointer border-b hover:bg-muted/40" onClick={() => setOpen(x.id)}>

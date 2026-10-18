@@ -29,7 +29,7 @@ function Users() {
     <div className="space-y-4">
       <PageHeader title={t("المستخدمون والصلاحيات", "Users & permissions")} subtitle={t("محاكاة للعرض فقط — ليست نظام تفويض آمنًا للإنتاج.", "UI simulation — not production authorization.")} />
       <Section title={t("مصفوفة الصلاحيات (اضغط على الدور للتبديل)", "Permission matrix (click to switch)")}>
-        <div className="overflow-x-auto"><table className="w-full text-sm">
+        <div className="overflow-x-auto overflow-y-hidden"><table className="w-full text-sm">
           <thead><tr className="border-b text-xs text-muted-foreground"><th className="px-2 py-2 text-start">{t("الدور / المستخدم", "Role / user")}</th>{PL.map(([k, ar, en]) => <th key={k} className="px-2 py-2 text-center font-medium">{t(ar, en)}</th>)}</tr></thead>
           <tbody>{(Object.keys(ROLE_NAMES) as Role[]).map((r) => (
             <tr key={r} className={cn("cursor-pointer border-b hover:bg-muted/40", s.role === r && "bg-primary-soft")} onClick={() => actions.setRole(r)}>
@@ -39,7 +39,7 @@ function Users() {
         </table></div>
       </Section>
       <Section title={t("سجل الأنشطة", "Activity log")} actions={<Input className="w-56" placeholder={t("بحث", "Search")} value={q} onChange={(e) => setQ(e.target.value)} />}>
-        <div className="overflow-x-auto"><table className="w-full text-sm">
+        <div className="overflow-x-auto overflow-y-hidden"><table className="w-full text-sm">
           <thead className="text-xs text-muted-foreground"><tr className="border-b">{[t("الوقت", "Time"), t("المستخدم", "User"), t("الدور", "Role"), t("الإجراء", "Action"), t("السجل المرتبط", "Reference")].map((h) => <th key={h} className="px-3 py-2 text-start font-medium">{h}</th>)}</tr></thead>
           <tbody>{s.activities.filter((a) => !q || a.action.includes(q) || a.user.includes(q) || a.ref.includes(q)).slice(0, 150).map((a) => (
             <tr key={a.id} className="border-b"><td className="whitespace-nowrap px-3 py-2 text-xs">{fmt(a.at, true)}</td><td className="px-3 py-2">{a.user}</td><td className="px-3 py-2 text-xs">{t(...ROLE_NAMES[a.role])}</td><td className="px-3 py-2">{a.action}</td><td className="px-3 py-2">{a.ref && <Pill>{a.ref}</Pill>}</td></tr>))}</tbody>

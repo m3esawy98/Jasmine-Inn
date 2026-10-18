@@ -39,7 +39,7 @@ function Finance() {
         <TabsContent value="inv">
           <Section>
             <Input className="mb-3 max-w-sm" placeholder={t("بحث بالفاتورة أو الاسم", "Search")} value={q} onChange={(e) => setQ(e.target.value)} />
-            <div className="overflow-x-auto"><table className="w-full text-sm">
+            <div className="overflow-x-auto overflow-y-hidden"><table className="w-full text-sm">
               <thead className="text-xs text-muted-foreground"><tr className="border-b">{[t("الفاتورة", "Invoice"), t("العميل", "Guest"), t("الإجمالي", "Total"), t("المحصل", "Paid"), t("الرصيد", "Balance"), t("متأخر", "Overdue")].map((h) => <th key={h} className="px-3 py-2 text-start font-medium">{h}</th>)}</tr></thead>
               <tbody>{invs.slice(0, 80).map((i) => { const od = invoiceOverdue(s, i.id); return (
                 <tr key={i.id} className="border-b hover:bg-muted/40">
@@ -54,7 +54,7 @@ function Finance() {
           </Section>
         </TabsContent>
         <TabsContent value="pay">
-          <Section><div className="overflow-x-auto"><table className="w-full text-sm">
+          <Section><div className="overflow-x-auto overflow-y-hidden"><table className="w-full text-sm">
             <thead className="text-xs text-muted-foreground"><tr className="border-b">{[t("الإيصال", "Receipt"), t("الفاتورة", "Invoice"), t("المبلغ", "Amount"), t("الطريقة", "Method"), t("التاريخ", "Date"), t("المستخدم", "User")].map((h) => <th key={h} className="px-3 py-2 text-start font-medium">{h}</th>)}</tr></thead>
             <tbody>{pays.slice(0, 80).map((p) => (
               <tr key={p.id} className="border-b"><td className="px-3 py-2">{p.code}{p.reversalOf && <Pill tone="warning" className="ms-2">{t("قيد تصحيح", "Correction")}</Pill>}{p.reversed && <Pill className="ms-2">{t("معكوس", "Reversed")}</Pill>}</td>

@@ -92,7 +92,7 @@ function BookingList({ statuses, initialStatus, created }: { statuses: readonly 
           </Select>
         )}
       </div>
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto overflow-y-hidden">
         <table className="w-full text-sm">
           <thead className="text-xs text-muted-foreground"><tr className="border-b text-start">{[t("الكود", "Code"), t("النزيل", "Guest"), t("الوحدة", "Unit"), t("الفترة", "Period"), t("القيمة", "Amount"), t("الحالة", "Status")].map((h) => <th key={h} className="px-3 py-2 text-start font-medium">{h}</th>)}</tr></thead>
           <tbody>
@@ -126,7 +126,7 @@ function Calendar() {
     <Section title={t("تقويم التوافر (21 يومًا)", "Availability (21 days)")} actions={
       <Select value={pid} onValueChange={setPid}><SelectTrigger className="w-56"><SelectValue /></SelectTrigger><SelectContent>{s.properties.map((p) => <SelectItem key={p.id} value={p.id}>{t(p.name, p.nameEn)}</SelectItem>)}</SelectContent></Select>
     }>
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto overflow-y-hidden">
         <table className="text-xs">
           <thead><tr><th className="sticky start-0 bg-card px-2 py-1 text-start">{t("السرير", "Bed")}</th>{days.map((d) => <th key={d} className={cn("w-8 px-0.5 py-1 font-normal text-muted-foreground", d === DEMO_TODAY && "text-primary font-bold")}>{d.slice(8)}</th>)}</tr></thead>
           <tbody>
