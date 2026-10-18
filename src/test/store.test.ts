@@ -69,10 +69,10 @@ function inspectionRows(bookingId: string, findings: Record<string, Finding> = {
     ...(findings[c.key] ?? { condition: "ok" as ItemCondition }),
   }));
 }
-/** Records a clean inspection, confirms it, settles the balance, then checks out (early check-out approved). */
+const INSPECTOR = "سعاد إبراهيم";
+/** Records a clean inspection, settles the balance, then checks out (early check-out approved). */
 function checkOutClean(bookingId: string) {
-  expect(actions.recordInspection(bookingId, inspectionRows(bookingId)).ok).toBe(true);
-  expect(actions.confirmInspection(bookingId).ok).toBe(true);
+  expect(actions.recordInspection(bookingId, inspectionRows(bookingId), INSPECTOR).ok).toBe(true);
   const b = getState().bookings.find((x) => x.id === bookingId)!;
   if (checkoutSettlement(getState(), b).balanceAfter !== 0)
     expect(actions.settleCheckout(bookingId, "cash", "").ok).toBe(true);
@@ -424,16 +424,13 @@ describe("check-out inspection", () => {
     });
   });
 
-  it("records the assigned inspector's clean report, then checks out once the front desk confirms it", () => {
+  it("records a clean report under the inspector's name, which clears the way to check-out", () => {
     const id = resident().id;
     const inspection = () => getState().bookings.find((b) => b.id === id)!.inspection!;
     expect(balance(id)).toBe(12000);
-    expect(actions.assignInspection(id, "سعاد إبراهيم").ok).toBe(true);
-    expect(actions.recordInspection(id, inspectionRows(id)).ok).toBe(true);
-    expect(inspection()).toMatchObject({ status: "reported", by: "سعاد إبراهيم" });
-    expect(actions.checkOut(id, true).ok).toBe(false);
-    expect(actions.confirmInspection(id).ok).toBe(true);
-    expect(inspection().status).toBe("approved");
+    expect(actions.recordInspection(id, inspectionRows(id), "").ok).toBe(false);
+    expect(actions.recordInspection(id, inspectionRows(id), INSPECTOR).ok).toBe(true);
+    expect(inspection()).toMatchObject({ status: "approved", by: INSPECTOR });
     // 12,000 − 12,000 dropped + 6,000 penalty − 3,000 deposit = 3,000 to pay before leaving.
     expect(actions.checkOut(id, true)).toEqual({ ok: false, error: "يلزم سداد المستحق قبل المغادرة: ٣٬٠٠٠ ج.م." });
     expect(actions.settleCheckout(id, "cash", "").ok).toBe(true);
@@ -450,7 +447,7 @@ describe("check-out inspection", () => {
     const id = resident().id;
     actions.recordPayment(invoiceOf(id).id, 12000, "cash", "");
     actions.setRole("housekeeping");
-    expect(actions.recordInspection(id, inspectionRows(id, damagedBed(1000))).ok).toBe(true);
+    expect(actions.recordInspection(id, inspectionRows(id, damagedBed(1000)), INSPECTOR).ok).toBe(true);
     expect(actions.reviewInspection(id, true).ok).toBe(false);
     actions.setRole("manager");
     expect(actions.checkOut(id, true).ok).toBe(false);
@@ -468,7 +465,7 @@ describe("check-out inspection", () => {
   it("collects damages beyond what the guest has credit for before check-out", () => {
     const id = resident().id;
     actions.recordPayment(invoiceOf(id).id, 12000, "cash", "");
-    actions.recordInspection(id, inspectionRows(id, damagedBed(12000)));
+    actions.recordInspection(id, inspectionRows(id, damagedBed(12000)), INSPECTOR);
     actions.reviewInspection(id, true);
     // 0 − 6,000 net of the cancelled stay − 3,000 deposit + 12,000 damages = 3,000, more than today's balance.
     expect(actions.checkOut(id, true).ok).toBe(false);
@@ -485,25 +482,24 @@ describe("check-out inspection", () => {
     const res = actions.recordInspection(
       id,
       inspectionRows(id, { key: { condition: "missing", charge: 200 } }),
+      INSPECTOR,
     );
     expect(res.ok).toBe(false);
   });
 
-  it("lets housekeeping inspect but not the front desk", () => {
+  it("lets the front desk and housekeeping inspect, but not accounting", () => {
     const id = resident().id;
+    actions.setRole("accountant");
+    expect(actions.recordInspection(id, inspectionRows(id), INSPECTOR).ok).toBe(false);
     actions.setRole("frontdesk");
-    expect(actions.assignInspection(id, "سعاد إبراهيم").ok).toBe(true);
-    expect(actions.recordInspection(id, inspectionRows(id)).ok).toBe(false);
+    expect(actions.recordInspection(id, inspectionRows(id), INSPECTOR).ok).toBe(true);
     actions.setRole("housekeeping");
-    expect(actions.recordInspection(id, inspectionRows(id)).ok).toBe(true);
-    expect(actions.confirmInspection(id).ok).toBe(false);
-    actions.setRole("frontdesk");
-    expect(actions.confirmInspection(id).ok).toBe(true);
+    expect(actions.recordInspection(id, inspectionRows(id), INSPECTOR).ok).toBe(true);
   });
 
   it("sends rejected charges back for a new inspection", () => {
     const id = resident().id;
-    actions.recordInspection(id, inspectionRows(id, damagedBed(1000)));
+    actions.recordInspection(id, inspectionRows(id, damagedBed(1000)), INSPECTOR);
     expect(actions.reviewInspection(id, false, "").ok).toBe(false);
     expect(actions.reviewInspection(id, false, "التلف قديم ومسجل عند الوصول").ok).toBe(true);
     expect(actions.checkOut(id, true).ok).toBe(false);

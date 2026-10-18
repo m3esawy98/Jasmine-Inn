@@ -19,7 +19,7 @@ import type {
 import { addDays, addMonths, computeRent } from "./calc";
 
 export const DEMO_TODAY = "2026-11-01";
-export const STATE_VERSION = 10;
+export const STATE_VERSION = 11;
 
 function rng(seed: number) {
   let s = seed;

@@ -78,7 +78,7 @@ export const PERMS: Record<Role, Perm[]> = {
   exec: ALL,
   manager: ALL,
   reservations: ["booking.create", "booking.review", "guest.edit"],
-  frontdesk: ["booking.create", "stay.checkin", "stay.checkout", "guest.edit", "payment.record"],
+  frontdesk: ["booking.create", "stay.checkin", "stay.checkout", "stay.inspect", "guest.edit", "payment.record"],
   accountant: ["payment.record", "payment.correct"],
   housekeeping: ["task.update", "task.approve", "stay.inspect"],
   auditor: [],
@@ -397,23 +397,11 @@ export const actions = {
     return { ok: true };
   },
 
-  /** Housekeeping records the room's condition before the guest leaves. */
-  /** The front desk sends a staff member to inspect the room before check-out. */
-  assignInspection(bookingId: string, assignee: string): Result {
-    if (!can(state.role, "stay.checkout") && !can(state.role, "stay.inspect")) return deny();
-    const s = { ...state };
-    const b = s.bookings.find((x) => x.id === bookingId);
-    if (!b || b.status !== "checked_in") return { ok: false, error: "الفحص متاح للمقيمين حاليًا فقط" };
-    if (!assignee.trim()) return { ok: false, error: "اختر من سيفحص الغرفة" };
-    const at = nowIso();
-    const text = `تكليف ${assignee} بفحص الغرفة قبل المغادرة`;
-    s.bookings = s.bookings.map((x) => (x.id === bookingId ? { ...x, inspectionRequest: { assignee, by: user(), at }, events: [...x.events, { at, text, user: user() }] } : x));
-    state = log(s, `${text} (${b.code})`, b.code, isScenario(s, bookingId));
-    emit();
-    return { ok: true };
-  },
-  recordInspection(bookingId: string, input: { key: string; condition: ItemCondition; note?: string; charge?: number }[]): Result {
+  /** The front desk or housekeeping records the room's condition before the guest leaves. A clean report
+   *  clears the way to check-out at once; charges wait for a manager. */
+  recordInspection(bookingId: string, input: { key: string; condition: ItemCondition; note?: string; charge?: number }[], inspector: string): Result {
     if (!can(state.role, "stay.inspect")) return deny();
+    if (!inspector.trim()) return { ok: false, error: "اختر من فحص الغرفة" };
     const s = { ...state };
     const b = s.bookings.find((x) => x.id === bookingId);
     if (!b || b.status !== "checked_in") return { ok: false, error: "الفحص متاح للمقيمين حاليًا فقط" };
@@ -433,26 +421,12 @@ export const actions = {
     }
     const total = items.reduce((a, x) => a + x.charge, 0);
     const at = nowIso();
-    const inspection = { items, total, by: b.inspectionRequest?.assignee ?? user(), at, status: total > 0 ? ("pending_approval" as const) : ("reported" as const) };
+    const inspection = { items, total, by: inspector.trim(), at, status: total > 0 ? ("pending_approval" as const) : ("approved" as const) };
     const issues = items.filter((x) => x.condition !== "ok").length;
     const text = issues
-      ? `فحص الغرفة قبل المغادرة: ${issues} ملاحظات بخصومات ${total.toLocaleString("ar-EG")} ج.م.${total > 0 ? " — بانتظار اعتماد المدير" : ""}`
-      : "فحص الغرفة قبل المغادرة: كل المحتويات سليمة";
+      ? `فحص الغرفة قبل المغادرة (${inspector.trim()}): ${issues} ملاحظات بخصومات ${total.toLocaleString("ar-EG")} ج.م.${total > 0 ? " — بانتظار اعتماد المدير" : ""}`
+      : `فحص الغرفة قبل المغادرة (${inspector.trim()}): كل المحتويات سليمة`;
     s.bookings = s.bookings.map((x) => (x.id === bookingId ? { ...x, inspection, events: [...x.events, { at, text, user: user() }] } : x));
-    state = log(s, `${text} (${b.code})`, b.code, isScenario(s, bookingId));
-    emit();
-    return { ok: true };
-  },
-
-  /** The front desk accepts a clean inspection report, which clears the way to check-out. */
-  confirmInspection(bookingId: string): Result {
-    if (!can(state.role, "stay.checkout")) return deny();
-    const s = { ...state };
-    const b = s.bookings.find((x) => x.id === bookingId);
-    if (b?.inspection?.status !== "reported") return { ok: false, error: "لا يوجد تقرير فحص بانتظار التأكيد" };
-    const at = nowIso();
-    const text = "تأكيد سلامة الغرفة بعد الفحص";
-    s.bookings = s.bookings.map((x) => (x.id === bookingId ? { ...x, inspection: { ...b.inspection!, status: "approved", reviewedBy: user(), reviewedAt: at }, events: [...x.events, { at, text, user: user() }] } : x));
     state = log(s, `${text} (${b.code})`, b.code, isScenario(s, bookingId));
     emit();
     return { ok: true };

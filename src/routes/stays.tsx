@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageHeader, Pill, Section, run } from "@/components/stay/kit";
-import { actions, activeStayOnBed, bedLabel, bedProperty, can, checkInBlockers, checkInPayment, checkoutSettlement, DEMO_TODAY, getState, guestName, inScope, inspectionChecklist, invoiceBalance, useDemo } from "@/lib/demo/store";
+import { actions, activeStayOnBed, bedLabel, bedProperty, can, checkInBlockers, checkInPayment, checkoutSettlement, DEMO_TODAY, getState, guestName, inScope, inspectionChecklist, invoiceBalance, ROLE_USERS, useDemo } from "@/lib/demo/store";
 import { addDays } from "@/lib/demo/calc";
 import type { Booking, ItemCondition, PayMethod } from "@/lib/demo/types";
 import { METHOD, useDate, useMoney, useT } from "@/lib/demo/ui";
@@ -396,13 +396,11 @@ function CheckOutPanel({ b }: { b: Booking }) {
     },
     {
       title: t("فحص الغرفة", "Room inspection"),
-      who: t("الاستقبال يكلّف · النظافة تفحص", "Front desk assigns · housekeeping inspects"),
+      who: t("الاستقبال أو النظافة", "Front desk or housekeeping"),
       done: inspected,
       note: inspected
         ? b.inspection!.total > 0 ? t(`خصومات معتمدة ${money(b.inspection!.total)}`, `Approved charges ${money(b.inspection!.total)}`) : t(`${b.inspection!.by}: كل المحتويات سليمة`, `${b.inspection!.by}: everything in good condition`)
         : b.inspection?.status === "pending_approval" ? t("بانتظار اعتماد المدير للخصومات", "Waiting for manager approval")
-        : b.inspection?.status === "reported" ? t(`${b.inspection.by} أبلغ أن الغرفة سليمة — بانتظار تأكيدك`, `${b.inspection.by} reports the room is fine — confirm to continue`)
-        : b.inspectionRequest ? t(`تم تكليف ${b.inspectionRequest.assignee} — بانتظار التقرير`, `${b.inspectionRequest.assignee} assigned — waiting for the report`)
         : undefined,
       body: <InspectionCard key={b.id} b={b} />,
     },
@@ -499,7 +497,6 @@ function InspectionCard({ b }: { b: Booking }) {
   const fmt = useDate();
   const checklist = inspectionChecklist(s, b.bedId);
   const ins = b.inspection;
-  const req = b.inspectionRequest;
   const fromInspection = (): Record<string, Row> =>
     Object.fromEntries(
       checklist.map((c) => {
@@ -508,6 +505,10 @@ function InspectionCard({ b }: { b: Booking }) {
       }),
     );
   const [rows, setRows] = useState(fromInspection);
+  // Whoever checks the room; defaults to the signed-in user, who can pick a housekeeping colleague instead.
+  const me = ROLE_USERS[s.role];
+  const [inspector, setInspector] = useState(ins?.by ?? me);
+  const people = [...new Set([me, ...s.staff])];
   // The form opens on demand: the inspection is an action someone starts, not a form waiting on screen.
   const [editing, setEditing] = useState(false);
   const [reject, setReject] = useState("");
@@ -519,12 +520,22 @@ function InspectionCard({ b }: { b: Booking }) {
     const res = actions.recordInspection(
       b.id,
       checklist.map((c) => ({ key: c.key, condition: rows[c.key].condition, note: rows[c.key].note, charge: rows[c.key].charge === "" ? 0 : Number(rows[c.key].charge) })),
+      inspector,
     );
-    if (run(res, total > 0 ? t("تم تسجيل الفحص وإرساله لاعتماد المدير", "Inspection recorded; sent for manager approval") : t("تم تسجيل التقرير: كل المحتويات سليمة — بانتظار تأكيد الاستقبال", "Report recorded: all in order"))) setEditing(false);
+    if (run(res, total > 0 ? t("تم تسجيل الفحص وإرساله لاعتماد المدير", "Inspection recorded; sent for manager approval") : t("تم تسجيل الفحص: كل المحتويات سليمة", "Inspection recorded: all in order"))) setEditing(false);
   };
   const form = (
         <>
-          <p className="mb-3 text-sm font-medium">{req ? t(`تقرير الفحص — ${req.assignee}`, `Inspection report — ${req.assignee}`) : t("تقرير الفحص", "Inspection report")}</p>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm font-medium">{t("تقرير الفحص", "Inspection report")}</p>
+            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+              {t("الفاحص", "Inspector")}
+              <Select value={inspector} onValueChange={setInspector} disabled={!canInspect}>
+                <SelectTrigger className="h-8 w-48"><SelectValue /></SelectTrigger>
+                <SelectContent>{people.map((x) => <SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent>
+              </Select>
+            </label>
+          </div>
           <ul className="space-y-2">
             {checklist.map((c) => {
               const r = rows[c.key];
@@ -559,14 +570,6 @@ function InspectionCard({ b }: { b: Booking }) {
           </div>
         </>
   );
-  const canAssign = can(s.role, "stay.checkout") || canInspect;
-  const [picking, setPicking] = useState(false);
-  const [who, setWho] = useState(req?.assignee ?? s.staff[0]);
-  const assign = () => {
-    if (run(actions.assignInspection(b.id, who), t(`تم تكليف ${who} بفحص الغرفة`, `${who} assigned to inspect the room`))) setPicking(false);
-  };
-  // Waiting on the inspector: assigned with no report yet, or the last report's charges were rejected.
-  const awaiting = !!req && (!ins || ins.status === "rejected");
   const rejected = ins?.status === "rejected" && (
     <p className="mb-3 rounded-lg bg-destructive-soft p-3 text-sm text-destructive">
       {t("رفض المدير الخصومات:", "Manager rejected the charges:")} {ins.rejectReason} — {t("أعد الفحص.", "Please re-inspect.")}
@@ -574,54 +577,22 @@ function InspectionCard({ b }: { b: Booking }) {
   );
 
   if (editing) return <div>{rejected}{form}</div>;
-  if (picking || (!req && !ins))
+  if (!ins)
     return (
-      <div className="rounded-lg border border-dashed p-3">
-        {picking ? (
-          <>
-            <p className="mb-2 text-sm">{t("من سيفحص الغرفة؟", "Who will inspect the room?")}</p>
-            <div className="flex flex-wrap items-center gap-2">
-              <Select value={who} onValueChange={setWho}>
-                <SelectTrigger className="h-9 w-48"><SelectValue /></SelectTrigger>
-                <SelectContent>{s.staff.map((x) => <SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent>
-              </Select>
-              <Button onClick={assign}><ClipboardCheck className="size-4" />{t("تكليف بالفحص", "Assign")}</Button>
-              <Button variant="ghost" onClick={() => setPicking(false)}>{t("إلغاء", "Cancel")}</Button>
-            </div>
-          </>
-        ) : (
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm text-muted-foreground">{t("كلّف أحد فريق النظافة بفحص محتويات الغرفة قبل المغادرة.", "Send someone from housekeeping to check the room before departure.")}</p>
-            <Button disabled={!canAssign} onClick={() => setPicking(true)}><ClipboardCheck className="size-4" />{t("بدء فحص الغرفة", "Start room inspection")}</Button>
-          </div>
-        )}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed p-3">
+        <p className="text-sm text-muted-foreground">{t("افحص محتويات الغرفة قبل المغادرة.", "Check the room's contents before departure.")}</p>
+        <Button disabled={!canInspect} onClick={() => setEditing(true)}><ClipboardCheck className="size-4" />{t("بدء فحص الغرفة", "Start room inspection")}</Button>
       </div>
     );
-  if (awaiting)
-    return (
-      <div>
-        {rejected}
-        <div className="rounded-lg border border-warning/30 bg-warning-soft p-3 text-sm">
-          <p className="font-medium">{t(`تم تكليف ${req!.assignee} بفحص الغرفة`, `${req!.assignee} is inspecting the room`)}</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">{fmt(req!.at, true)} · {t("بانتظار تقرير الفاحص", "Waiting for the inspector's report")}</p>
-        </div>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <Button disabled={!canInspect} onClick={() => setEditing(true)}><ClipboardCheck className="size-4" />{t("تسجيل تقرير الفحص", "Record the report")}</Button>
-          {canAssign && <Button variant="ghost" onClick={() => setPicking(true)}>{t("تغيير الفاحص", "Change inspector")}</Button>}
-        </div>
-        {!canInspect && <p className="mt-2 text-xs text-muted-foreground">{t(`يسجّل ${req!.assignee} التقرير من حساب النظافة.`, `${req!.assignee} records the report from housekeeping.`)}</p>}
-      </div>
-    );
-  if (!ins) return null;
   return (
     <div>
       <div className="mb-3">
-        <Pill tone={ins.status === "approved" ? "success" : ins.status === "rejected" ? "destructive" : ins.status === "reported" ? "info" : "warning"}>
-          {ins.status === "approved" ? t("معتمد", "Approved") : ins.status === "rejected" ? t("مرفوض", "Rejected") : ins.status === "reported" ? t("بانتظار تأكيدك", "Waiting for your confirmation") : t("بانتظار اعتماد المدير", "Awaiting manager approval")}
+        <Pill tone={ins.status === "approved" ? "success" : ins.status === "rejected" ? "destructive" : "warning"}>
+          {ins.status === "approved" ? t("معتمد", "Approved") : ins.status === "rejected" ? t("مرفوض", "Rejected") : t("بانتظار اعتماد المدير", "Awaiting manager approval")}
         </Pill>
       </div>
       {rejected}
-          <p className="text-xs text-muted-foreground">{t("سجّله", "Recorded by")} {ins.by} · {fmt(ins.at, true)}{ins.reviewedBy && ` · ${ins.status === "approved" ? t("اعتمده", "approved by") : t("رفضه", "rejected by")} ${ins.reviewedBy}`}</p>
+          <p className="text-xs text-muted-foreground">{t("فحصه", "Inspected by")} {ins.by} · {fmt(ins.at, true)}{ins.reviewedBy && ` · ${ins.status === "approved" ? t("اعتمده", "approved by") : t("رفضه", "rejected by")} ${ins.reviewedBy}`}</p>
           {ins.items.every((x) => x.condition === "ok") ? (
             <p className="mt-3 flex items-center gap-2 text-sm text-success"><CheckCircle2 className="size-4" />{t("كل محتويات الغرفة سليمة.", "Everything in the room is in good condition.")}</p>
           ) : (
@@ -649,12 +620,6 @@ function InspectionCard({ b }: { b: Booking }) {
               <p className="mt-3 text-sm text-warning">{t("بانتظار اعتماد المدير للخصومات قبل المغادرة.", "Waiting for a manager to approve the charges.")}</p>
             )
           )}
-      {ins.status === "reported" &&
-        (can(s.role, "stay.checkout") ? (
-          <Button className="mt-3" onClick={() => run(actions.confirmInspection(b.id), t("تم تأكيد سلامة الغرفة", "Room confirmed OK"))}><CheckCircle2 className="size-4" />{t("الفحص تمام — متابعة", "Inspection OK — continue")}</Button>
-        ) : (
-          <p className="mt-3 text-sm text-info">{t("بانتظار تأكيد الاستقبال.", "Waiting for the front desk to confirm.")}</p>
-        ))}
       {canInspect &&
         (ins.status === "rejected" ? (
           <Button className="mt-3" onClick={() => setEditing(true)}><ClipboardCheck className="size-4" />{t("إعادة فحص الغرفة", "Re-inspect the room")}</Button>

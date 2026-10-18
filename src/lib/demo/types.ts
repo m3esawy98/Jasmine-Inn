@@ -99,7 +99,6 @@ export interface Booking {
   createdAt: string;
   scenario?: boolean;
   /** Who was sent to inspect the room before check-out. */
-  inspectionRequest?: { assignee: string; by: string; at: string };
   /** Pre-check-out room inspection; check-out requires it to be approved. */
   inspection?: Inspection;
 }
@@ -119,7 +118,7 @@ export interface Inspection {
   by: string;
   at: string;
   /** Charges need a manager's approval; a clean report waits for the front desk to confirm it. */
-  status: "reported" | "pending_approval" | "approved" | "rejected";
+  status: "pending_approval" | "approved" | "rejected";
   reviewedBy?: string;
   reviewedAt?: string;
   rejectReason?: string;
