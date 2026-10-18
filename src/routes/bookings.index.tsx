@@ -35,9 +35,9 @@ function Bookings() {
       <PageHeader title={t("الحجوزات الحالية", "Current bookings")} subtitle={t("الحجز المؤكد لا يُحتسب إشغالًا فعليًا قبل تسجيل الدخول.", "Confirmed ≠ occupied until check-in.")} actions={<Button asChild><Link to="/bookings/new"><Plus className="size-4" />{t("حجز جديد", "New booking")}</Link></Button>} />
       <Tabs dir={s.lang === "ar" ? "rtl" : "ltr"} defaultValue={initialTab}>
         <TabsList className={CARD_TABS}>
-          <CardTab value="pending" icon={Hourglass} label={t("حجوزات قيد المراجعة", "Pending review")} count={num(count(["pending"]))} />
-          <CardTab value="active" icon={List} label={t("الحجوزات النشطة", "Active bookings")} count={num(count(ACTIVE))} />
-          <CardTab value="ended" icon={Archive} label={t("الحجوزات المنتهية", "Ended bookings")} count={num(count(ENDED))} />
+          <CardTab value="pending" icon={Hourglass} label={t("قيد المراجعة", "Pending review")} count={num(count(["pending"]))} />
+          <CardTab value="active" icon={List} label={t("حجوزات نشطة", "Active bookings")} count={num(count(ACTIVE))} />
+          <CardTab value="ended" icon={Archive} label={t("حجوزات منتهية", "Ended bookings")} count={num(count(ENDED))} />
           <CardTab value="cal" icon={CalendarDays} label={t("تقويم التوافر", "Availability calendar")} />
         </TabsList>
         <TabsContent value="pending"><BookingList statuses={["pending"]} created={search.created} /></TabsContent>
