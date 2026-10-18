@@ -197,6 +197,31 @@ export interface Task {
   doneAt?: string;
   source?: string;
 }
+/** A room key card, encoded from the system only for a checked-in stay. It opens the room (and, in student
+ *  housing, the building gate) until the stay runs out (calc.ts cardExpiry), or until it is cancelled. */
+export interface KeyCard {
+  id: string;
+  code: string;
+  bookingId: string;
+  bedId: string;
+  issuedAt: string;
+  /** Moment the lock stops accepting it. */
+  validUntil: string;
+  status: "active" | "cancelled";
+  by: string;
+  cancelledAt?: string;
+  cancelReason?: string;
+  /** The lost card this one replaced. */
+  replaces?: string;
+}
+/** A lock refusing a card, as reported back by the door (simulated in the demo). */
+export interface DoorEvent {
+  id: string;
+  at: string;
+  roomId: string;
+  cardId: string;
+  result: "denied_expired" | "denied_cancelled";
+}
 export interface Activity {
   id: string;
   at: string;
@@ -223,6 +248,8 @@ export interface DemoState {
   payments: Payment[];
   stays: Stay[];
   tasks: Task[];
+  cards: KeyCard[];
+  doorEvents: DoorEvent[];
   activities: Activity[];
   staff: string[];
   counters: Record<string, number>;

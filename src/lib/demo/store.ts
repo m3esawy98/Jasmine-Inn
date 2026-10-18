@@ -1,7 +1,7 @@
 import { useEffect, useReducer, useSyncExternalStore } from "react";
-import type { Booking, DemoState, Gender, Guest, InspectionItem, ItemCondition, NewGuest, PayMethod, Plan, Role, Room, RoomType, Task, TaskStatus } from "./types";
+import type { Booking, DemoState, Gender, Guest, InspectionItem, ItemCondition, KeyCard, NewGuest, PayMethod, Plan, Role, Room, RoomType, Task, TaskStatus } from "./types";
 import { createSeed, DEMO_TODAY, ROLE_USERS, STATE_VERSION, buildSchedule } from "./seed";
-import { addDays, addMonths, computeRent, freeFrom, overlaps, validRange } from "./calc";
+import { addDays, addMonths, cardExpiry, computeRent, freeFrom, overlaps, validRange } from "./calc";
 
 const KEY = "stayflow-demo-state";
 let state: DemoState = createSeed();
@@ -224,6 +224,35 @@ export function checkOverride(o: { roomId: string; reason: string; code: string 
 /** Whether a room already has someone booked for the period (a fill-first room to recommend). */
 export const roomPartlyTaken = (s: DemoState, roomId: string, start: string, end: string, planId: string) =>
   takenBeds(s, roomId, start, end, planId).length > 0;
+// ---------------- room key cards ----------------
+/** Cards a guest can hold at once; a lost one is replaced, not added. */
+export const MAX_CARDS = 2;
+/** A card works while it is not cancelled and its stay hasn't run out (calc.ts cardExpiry). */
+export const cardState = (k: KeyCard): "active" | "expired" | "cancelled" =>
+  k.status === "cancelled" ? "cancelled" : k.validUntil <= nowIso() ? "expired" : "active";
+export const bookingCards = (s: DemoState, bookingId: string) =>
+  s.cards.filter((k) => k.bookingId === bookingId).sort((a, b) => b.issuedAt.localeCompare(a.issuedAt));
+/** Card problems the lock system would raise: a working card with no checked-in stay behind it (should never
+ *  happen, so it is a security alert), and refused entries reported by the doors. */
+export function cardAlerts(s: DemoState) {
+  const orphan = s.cards.filter((k) => cardState(k) === "active" && s.bookings.find((b) => b.id === k.bookingId)?.status !== "checked_in");
+  return { orphan, refused: s.doorEvents };
+}
+/** Why a card can't be encoded for this booking now, or undefined when it can. */
+export function cardBlocker(s: DemoState, b: Booking | undefined): string | undefined {
+  if (!b || b.status !== "checked_in" || !s.stays.some((x) => x.bookingId === b.id && x.status === "active"))
+    return "لا يُكوَّد كارت إلا لحجز مؤكد تم تسجيل دخوله";
+  if (cardValidUntil(s, b) <= nowIso()) return "انتهت مدة الإقامة؛ مدّد الحجز أو سجّل المغادرة قبل تكويد كارت";
+  return undefined;
+}
+const cardValidUntil = (s: DemoState, b: Booking) => cardExpiry(planPeriod(s, b.planId), b.end);
+function newCard(s: DemoState, b: Booking, replaces?: string): KeyCard {
+  const n = next(s, "KC");
+  const card: KeyCard = { id: `kc${n}`, code: `KC-${n}`, bookingId: b.id, bedId: b.bedId, issuedAt: nowIso(), validUntil: cardValidUntil(s, b), status: "active", by: user(), replaces };
+  s.cards = [card, ...s.cards];
+  return card;
+}
+
 /** How far ahead a room can be booked from its page; beyond this it counts as booked up. */
 export const BOOK_AHEAD_DAYS = 90;
 /** The first day, from today, that some bed in the room has no booking on it: today for a free bed,
@@ -446,6 +475,44 @@ export const actions = {
     return { ok: true };
   },
 
+  /** Encodes a room card for a checked-in guest (the lock accepts it until their stay runs out). */
+  issueCard(bookingId: string): Result<KeyCard> {
+    if (!can(state.role, "stay.checkin")) return deny();
+    const s = { ...state };
+    const b = s.bookings.find((x) => x.id === bookingId);
+    const blocked = cardBlocker(s, b);
+    if (blocked) return { ok: false, error: blocked };
+    if (s.cards.filter((k) => k.bookingId === bookingId && cardState(k) === "active").length >= MAX_CARDS)
+      return { ok: false, error: `الحد الأقصى ${MAX_CARDS} كارت لكل نزيل؛ استخدم «بدل فاقد» للكارت الضائع` };
+    const card = newCard(s, b!);
+    const room = s.rooms.find((r) => r.id === s.beds.find((x) => x.id === b!.bedId)!.roomId)!;
+    const text = `تكويد كارت ${card.code} للغرفة ${room.code} صالح حتى ${card.validUntil.slice(0, 10)} 12:00`;
+    s.bookings = s.bookings.map((x) => (x.id === bookingId ? { ...x, events: [...x.events, { at: card.issuedAt, text, user: user() }] } : x));
+    state = log(s, `${text} (${b!.code})`, b!.code, isScenario(s, bookingId));
+    emit();
+    return { ok: true, data: card };
+  },
+
+  /** Cancels a lost card at the lock and encodes a replacement in its place. */
+  replaceCard(cardId: string, reason: string): Result<KeyCard> {
+    if (!can(state.role, "stay.checkin")) return deny();
+    const s = { ...state };
+    const old = s.cards.find((k) => k.id === cardId);
+    if (!old || cardState(old) !== "active") return { ok: false, error: "الكارت غير فعّال" };
+    if (!reason.trim()) return { ok: false, error: "اكتب سبب بدل الفاقد" };
+    const b = s.bookings.find((x) => x.id === old.bookingId);
+    const blocked = cardBlocker(s, b);
+    if (blocked) return { ok: false, error: blocked };
+    const at = nowIso();
+    s.cards = s.cards.map((k) => (k.id === cardId ? { ...k, status: "cancelled", cancelledAt: at, cancelReason: reason.trim() } : k));
+    const card = newCard(s, b!, old.id);
+    const text = `بدل فاقد: إلغاء الكارت ${old.code} (${reason.trim()}) وتكويد ${card.code}`;
+    s.bookings = s.bookings.map((x) => (x.id === b!.id ? { ...x, events: [...x.events, { at, text, user: user() }] } : x));
+    state = log(s, `${text} (${b!.code})`, b!.code, isScenario(s, b!.id));
+    emit();
+    return { ok: true, data: card };
+  },
+
   checkOut(id: string, earlyApproved: boolean): Result {
     if (!can(state.role, "stay.checkout")) return deny();
     const s = { ...state };
@@ -482,6 +549,9 @@ export const actions = {
       x.id === id ? { ...x, status: "checked_out", events: [...x.events, { at, text: earlyApproved && DEMO_TODAY < b.end ? "مغادرة مبكرة معتمدة" : "تسجيل المغادرة", user: user() }] } : x,
     );
     s.contracts = s.contracts.map((c) => (c.bookingId === id ? { ...c, status: "ended" } : c));
+    // The guest's cards stop opening the door the moment they check out.
+    const cancelled = s.cards.filter((k) => k.bookingId === id && k.status === "active");
+    s.cards = s.cards.map((k) => (k.bookingId === id && k.status === "active" ? { ...k, status: "cancelled", cancelledAt: at, cancelReason: "تسجيل المغادرة" } : k));
     // A shared room with other residents stays in service; only the vacated bed is cleaned.
     const shared = occupiedBeds(s, room.id) > 0;
     if (!shared) s.rooms = s.rooms.map((r) => (r.id === room.id ? { ...r, hk: "dirty" } : r));
@@ -493,6 +563,7 @@ export const actions = {
     state = log(
       s,
       `تسجيل مغادرة ${guestName(s, b.guestId)} وإنشاء مهمة تنظيف TK-${t} للغرفة ${room.code}` +
+        (cancelled.length ? ` · إلغاء الكارت ${cancelled.map((k) => k.code).join("، ")}` : "") +
         (settlement.damages || settlement.deposit ? ` · تسوية التأمين: خصم ${settlement.damages.toLocaleString("ar-EG")} من تأمين ${settlement.deposit.toLocaleString("ar-EG")} ج.م.` : ""),
       b.code,
       isScenario(s, id),

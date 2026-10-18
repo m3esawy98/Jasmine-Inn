@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import type { LucideIcon } from "lucide-react";
 import { TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import { DEMO_TODAY, invoiceOverdue, kpis, useDemo } from "@/lib/demo/store";
+import { cardAlerts, DEMO_TODAY, inScope, invoiceOverdue, kpis, useDemo } from "@/lib/demo/store";
 import type { DemoState } from "@/lib/demo/types";
 import { useT } from "@/lib/demo/ui";
 
@@ -90,6 +90,12 @@ export function computeAlerts(s: DemoState, t: (a: string, e: string) => string)
   const overdue = s.invoices.filter((i) => i.status === "open" && invoiceOverdue(s, i.id) > 0).length;
   const notReady = s.rooms.filter((r) => r.hk !== "ready" && r.hk !== "maintenance").length;
   const out: { tone: string; text: string; to: string; search?: Record<string, string> }[] = [];
+  // Room cards: a working card with no checked-in stay should never exist; refused entries come from the locks.
+  const cards = cardAlerts(s);
+  const roomCode = (id: string) => s.rooms.find((r) => r.id === id)?.code ?? "";
+  if (cards.orphan.length) out.push({ tone: "destructive", text: t(`تنبيه أمني: ${cards.orphan.length} كارت يفتح غرفة بدون إقامة مسجلة`, `Security: ${cards.orphan.length} cards open a room with no recorded stay`), to: "/units" });
+  for (const e of cards.refused.filter((x) => inScope(s, s.rooms.find((r) => r.id === x.roomId)?.propertyId ?? "")))
+    out.push({ tone: "destructive", text: t(`محاولة دخول بكارت منتهي – غرفة ${roomCode(e.roomId)} (${e.at.slice(11, 16)})`, `Entry refused, expired card – room ${roomCode(e.roomId)} (${e.at.slice(11, 16)})`), to: "/rooms/$id".replace("$id", e.roomId) });
   if (k.overstays.length) out.push({ tone: "destructive", text: t(`${k.overstays.length} مقيمين تجاوزوا موعد المغادرة`, `${k.overstays.length} residents past their departure date`), to: "/stays", search: { tab: "late" } });
   if (k.pending) out.push({ tone: "warning", text: t(`${k.pending} حجوزات تنتظر المراجعة`, `${k.pending} bookings awaiting review`), to: "/bookings", search: { status: "pending" } });
   if (k.arrivals.length) out.push({ tone: "info", text: t(`${k.arrivals.length} وصول متوقع اليوم`, `${k.arrivals.length} arrivals expected today`), to: "/stays", search: { tab: "arr" } });

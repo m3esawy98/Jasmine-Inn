@@ -1,4 +1,6 @@
 import type {
+  DoorEvent,
+  KeyCard,
   Bed,
   Booking,
   Building,
@@ -16,10 +18,10 @@ import type {
   Activity,
   Gender,
 } from "./types";
-import { addDays, addMonths, computeRent } from "./calc";
+import { addDays, addMonths, cardExpiry, computeRent } from "./calc";
 
 export const DEMO_TODAY = "2026-11-01";
-export const STATE_VERSION = 14;
+export const STATE_VERSION = 15;
 
 function rng(seed: number) {
   let s = seed;
@@ -107,7 +109,7 @@ export function createSeed(): DemoState {
   const stays: Stay[] = [];
   const tasks: Task[] = [];
   const activities: Activity[] = [];
-  const c = { BK: 1000, CT: 500, INV: 2000, RC: 7000, ST: 0, TK: 300, G: 0 };
+  const c = { BK: 1000, CT: 500, INV: 2000, RC: 7000, ST: 0, TK: 300, G: 0, KC: 4000, DE: 0 };
 
   const newGuest = (kind: "student" | "guest", gender: Gender = r() < 0.5 ? "female" : "male") => {
     c.G++;
@@ -346,6 +348,20 @@ export function createSeed(): DemoState {
   // historical approved tasks
   for (let i = 5; i < 11 && freeRooms[i]; i++) mk(freeRooms[i], "cleaning", "تنظيف دوري", "approved", "low", "أم كلثوم محمود");
 
+  // Every current resident got a room card at check-in, valid until their stay runs out.
+  const cards: KeyCard[] = [];
+  for (const st of stays.filter((x) => x.status === "active")) {
+    const b = bookings.find((x) => x.id === st.bookingId)!;
+    const period = plans.find((p) => p.id === b.planId)!.period;
+    c.KC++;
+    cards.push({ id: `kc${c.KC}`, code: `KC-${c.KC}`, bookingId: b.id, bedId: st.bedId, issuedAt: st.checkInAt, validUntil: cardExpiry(period, b.end), status: "active", by: ROLE_USERS.frontdesk });
+  }
+  // Locks refused two entries after midnight: residents past their departure date whose cards had expired.
+  const doorEvents: DoorEvent[] = cards
+    .filter((k) => k.validUntil <= `${DEMO_TODAY}T00:00:00`)
+    .slice(0, 2)
+    .map((k, i) => ({ id: `de${++c.DE}`, at: `${DEMO_TODAY}T${i ? "01:15" : "00:40"}:00`, roomId: beds.find((x) => x.id === k.bedId)!.roomId, cardId: k.id, result: "denied_expired" }));
+
   const seedActs: [string, string, string][] = [
     ["2026-10-31T17:40:00", "reservations", "تأكيد 3 حجوزات فندقية لعطلة نهاية الأسبوع"],
     ["2026-10-31T15:10:00", "accountant", "تسجيل تحصيلات يومية بقيمة 48,600 ج.م."],
@@ -373,6 +389,8 @@ export function createSeed(): DemoState {
     payments,
     stays,
     tasks,
+    cards,
+    doorEvents,
     activities,
     staff: ["أم كلثوم محمود", "سعاد إبراهيم", "رجب عبد العزيز", "م. سامي الفني"],
     counters: c,

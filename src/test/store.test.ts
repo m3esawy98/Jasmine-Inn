@@ -3,6 +3,10 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   actions,
   activeStayOnBed,
+  bookingCards,
+  cardAlerts,
+  cardState,
+  MAX_CARDS,
   bookableBeds,
   checkoutSettlement,
   DEMO_TODAY,
@@ -363,6 +367,53 @@ describe("room gender", () => {
   it("is empty for a vacant room", () => {
     checkOutClean(bookingOn(BED1).id);
     expect(roomGenders(getState(), ROOM).size).toBe(0);
+  });
+});
+
+describe("room key cards", () => {
+  // A-204 bed 1's resident is checked in (monthly, through 2027-01-31) and holds a card from the seed.
+  const resident = () => bookingOn(BED1);
+  const live = (bookingId: string) => bookingCards(getState(), bookingId).filter((k) => cardState(k) === "active");
+
+  it("gives every current resident a card valid until their stay runs out", () => {
+    const [card] = live(resident().id);
+    // Monthly through 2027-01-31: the card stops at midnight after the last day.
+    expect(card.validUntil).toBe("2027-02-01T00:00:00");
+  });
+
+  it("encodes a card only for a checked-in stay", () => {
+    const b = book(BED2, "2026-12-01", "2026-12-31");
+    expect(actions.issueCard(b.id).ok).toBe(false);
+    confirmAndCheckIn(b);
+    expect(actions.issueCard(b.id).ok).toBe(true);
+  });
+
+  it("caps cards per guest and replaces a lost one instead", () => {
+    const id = resident().id;
+    while (live(id).length < MAX_CARDS) expect(actions.issueCard(id).ok).toBe(true);
+    expect(actions.issueCard(id).ok).toBe(false);
+    const lost = live(id)[0];
+    expect(actions.replaceCard(lost.id, "").ok).toBe(false);
+    expect(actions.replaceCard(lost.id, "فقده النزيل").ok).toBe(true);
+    expect(cardState(getState().cards.find((k) => k.id === lost.id)!)).toBe("cancelled");
+    expect(live(id)).toHaveLength(MAX_CARDS);
+  });
+
+  it("cancels the guest's cards at check-out", () => {
+    const id = resident().id;
+    expect(checkOutClean(id).ok).toBe(true);
+    expect(live(id)).toHaveLength(0);
+    expect(cardAlerts(getState()).orphan).toHaveLength(0);
+  });
+
+  it("lets cards of residents past their departure date expire, and refuses new ones", () => {
+    // A stay whose card ran out before today, whatever the time of day the test runs.
+    const late = getState().bookings.find(
+      (b) => b.status === "checked_in" && bookingCards(getState(), b.id).some((k) => k.validUntil <= `${DEMO_TODAY}T00:00:00`),
+    )!;
+    expect(bookingCards(getState(), late.id).every((k) => cardState(k) !== "active")).toBe(true);
+    expect(actions.issueCard(late.id).ok).toBe(false);
+    expect(cardAlerts(getState()).refused.length).toBeGreaterThan(0);
   });
 });
 

@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { AlarmClock, BedDouble, Check, CheckCircle2, ClipboardCheck, LogIn, LogOut, Undo2, Wallet, XCircle } from "lucide-react";
+import { AlarmClock, BedDouble, Check, CheckCircle2, ClipboardCheck, LogIn, LogOut, Nfc, Undo2, Wallet, XCircle } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList } from "@/components/ui/tabs";
 import { CARD_TABS, CardTab, PageHeader, Pill, Section, run } from "@/components/stay/kit";
-import { actions, activeStayOnBed, bedLabel, bedProperty, can, checkInBlockers, checkInPayment, checkoutSettlement, DEMO_TODAY, getState, guestName, inScope, inspectionChecklist, invoiceBalance, ROLE_USERS, useDemo } from "@/lib/demo/store";
+import { KeyCardPanel } from "@/components/stay/KeyCards";
+import { actions, activeStayOnBed, bedLabel, bookingCards, cardState, bedProperty, can, checkInBlockers, checkInPayment, checkoutSettlement, DEMO_TODAY, getState, guestName, inScope, inspectionChecklist, invoiceBalance, ROLE_USERS, useDemo } from "@/lib/demo/store";
 import { addDays } from "@/lib/demo/calc";
 import type { Booking, ItemCondition, PayMethod } from "@/lib/demo/types";
 import { METHOD, useDate, useMoney, useT } from "@/lib/demo/ui";
@@ -288,7 +289,7 @@ function CheckInPanel({ b, onCheckedIn }: { b: Booking; onCheckedIn: () => void 
       ),
     },
     {
-      title: t("تسليم السرير وتسجيل الدخول", "Hand over the bed and check in"),
+      title: t("تسجيل الدخول على النظام", "Check in on the system"),
       who: t("الاستقبال", "Front desk"),
       done: false,
       note: early ? t(`موعد الوصول ${fmt(b.start)}`, `Arrival date ${fmt(b.start)}`) : undefined,
@@ -303,6 +304,14 @@ function CheckInPanel({ b, onCheckedIn }: { b: Booking; onCheckedIn: () => void 
           }}><LogIn className="size-4" />{t("تسجيل الدخول", "Check in")}</Button>
         </>
       ),
+    },
+    {
+      title: t("تكويد وتسليم كارت الغرفة", "Encode and hand over the room card"),
+      who: t("الاستقبال", "Front desk"),
+      done: false,
+      // No card opens a door without a confirmed, checked-in booking behind it.
+      note: t("يُكوَّد بعد تسجيل الدخول فقط؛ لا يعمل أي كارت بدون حجز مؤكد وإقامة مسجلة على النظام.", "Encoded only after check-in: no card works without a confirmed booking and a recorded stay."),
+      body: <Button className="w-full" variant="outline" disabled><Nfc className="size-4" />{t("تكويد كارت الغرفة", "Encode the room card")}</Button>,
     },
   ];
   return (
@@ -333,6 +342,7 @@ function ResidentPanel({ b, title }: { b: Booking; title?: string }) {
         <div><dt className="text-xs text-muted-foreground">{t("الرصيد", "Balance")}</dt><dd className={cn("font-semibold", bal > 0 ? "text-destructive" : "text-success")}>{money(bal)}</dd></div>
         <div><dt className="text-xs text-muted-foreground">{t("الفاتورة", "Invoice")}</dt><dd>{inv ? <Link to="/finance/$id" params={{ id: inv.id }} className="text-primary">{inv.code}</Link> : "—"}</dd></div>
       </dl>
+      <div className="mt-4"><KeyCardPanel b={b} /></div>
       <Button variant="outline" className="mt-4 w-full" onClick={() => setLeaving(true)}><LogOut className="size-4" />{b.end > DEMO_TODAY ? t("بدء إجراءات مغادرة مبكرة", "Start early check-out") : t("بدء إجراءات المغادرة", "Start check-out")}</Button>
     </Section>
   );
@@ -351,6 +361,7 @@ function CheckOutPanel({ b }: { b: Booking }) {
   const inspected = b.inspection?.status === "approved";
   const settlement = checkoutSettlement(s, b);
   const due = settlement.balanceAfter;
+  const liveCards = bookingCards(s, b.id).filter((k) => cardState(k) === "active");
   const plan = s.plans.find((p) => p.id === b.planId)!;
   const [method, setMethod] = useState<PayMethod>("cash");
   const [ref, setRef] = useState("");
@@ -424,7 +435,10 @@ function CheckOutPanel({ b }: { b: Booking }) {
               </Button>
             </div>
           )}
-          <p className="mt-2 text-xs text-muted-foreground">{t("ستُنشأ مهمة تنظيف للغرفة بعد التأكيد.", "A cleaning task will be created.")}</p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            {t("ستُنشأ مهمة تنظيف للغرفة بعد التأكيد.", "A cleaning task will be created.")}
+            {liveCards.length > 0 && ` ${t(`وسيُلغى الكارت ${liveCards.map((k) => k.code).join("، ")} فلا يفتح الباب بعدها.`, `Card ${liveCards.map((k) => k.code).join(", ")} will stop opening the door.`)}`}
+          </p>
           {(!dateOk || !inspected) && <p className="mt-2 text-xs text-destructive">{t("أكمل الخطوات السابقة أولًا.", "Finish the steps above first.")}</p>}
           {inspected && dateOk && due !== 0 && (
             <p className="mt-2 text-xs text-destructive">
@@ -432,7 +446,7 @@ function CheckOutPanel({ b }: { b: Booking }) {
             </p>
           )}
           <Button size="lg" variant="destructive" className="mt-3 w-full" disabled={!inspected || !dateOk || due !== 0 || !can(s.role, "stay.checkout")} onClick={() => {
-            if (!run(actions.checkOut(b.id, early), t("تم تسجيل المغادرة وتسوية التأمين وإنشاء مهمة تنظيف", "Checked out; deposit settled; cleaning task created"))) return;
+            if (!run(actions.checkOut(b.id, early), t("تم تسجيل المغادرة وتسوية التأمين وإلغاء الكارت وإنشاء مهمة تنظيف", "Checked out; deposit settled; card cancelled; cleaning task created"))) return;
             if (b.scenario && getState().scenario.tourActive) actions.tour({ step: 6 });
             // Continue straight to the room's new cleaning task.
             const task = getState().tasks.find((x) => x.source === b.code && x.status === "new");

@@ -1,12 +1,15 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { ArrowRight, BedDouble, CalendarDays, IdCard, Mail, Phone, Plus } from "lucide-react";
+import { ArrowRight, BedDouble, CalendarDays, IdCard, KeyRound, Mail, Phone, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader, Pill, Section, StatusPill } from "@/components/stay/kit";
 import { ExceptionDialog } from "@/components/stay/ExceptionDialog";
+import { CARD_STATE } from "@/components/stay/KeyCards";
 import {
   activeStayOnBed,
+  bookingCards,
   can,
+  cardState,
   DEMO_TODAY,
   fillFirstToday,
   roomBookedUp,
@@ -174,6 +177,21 @@ function RoomDetail() {
                         <CalendarDays className="size-3.5" />
                         {t("من", "From")} {fmt(stay.checkIn)} {t("إلى", "to")} {fmt(booking.end)}
                       </li>
+                      {(() => {
+                        // The resident's newest room card and whether the door still accepts it.
+                        const card = bookingCards(s, booking.id)[0];
+                        const st = card && cardState(card);
+                        return (
+                          <li className="flex items-center gap-2">
+                            <KeyRound className="size-3.5" />
+                            {card ? (
+                              <>{card.code} <Pill tone={CARD_STATE[st!][2]}>{t(CARD_STATE[st!][0], CARD_STATE[st!][1])}</Pill>{st === "active" && <span className="text-xs">{t(`حتى ${fmt(card.validUntil, true)}`, `until ${fmt(card.validUntil, true)}`)}</span>}</>
+                            ) : (
+                              t("لم يُكوَّد كارت بعد", "No card encoded yet")
+                            )}
+                          </li>
+                        );
+                      })()}
                     </ul>
                     <div className="flex flex-wrap gap-x-4 gap-y-1 border-t pt-2 text-xs">
                       <span>

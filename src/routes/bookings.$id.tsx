@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PageHeader, Section, StatusPill, run } from "@/components/stay/kit";
-import { actions, bedLabel, bedProperty, can, getState, invoiceBalance, useDemo } from "@/lib/demo/store";
+import { KeyCardPanel } from "@/components/stay/KeyCards";
+import { actions, bedLabel, bedProperty, bookingCards, can, getState, invoiceBalance, useDemo } from "@/lib/demo/store";
 import { BOOKING_STATUS, useDate, useMoney, useT } from "@/lib/demo/ui";
 import { meta } from "@/lib/demo/meta";
 
@@ -48,7 +49,7 @@ function BookingDetail() {
               </>
             )}
             {["pending", "confirmed"].includes(b.status) && <Button variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive-soft hover:text-destructive" disabled={!review} onClick={() => setDlg("cancelled")}><Ban className="size-4" />{t("إلغاء", "Cancel")}</Button>}
-            {b.status === "confirmed" && <Button variant="secondary" onClick={() => navigate({ to: "/stays", search: { tab: "arr" } })}>{t("إلى الوصول المتوقع", "Go to arrivals")}</Button>}
+            {b.status === "confirmed" && <Button variant="secondary" onClick={() => navigate({ to: "/stays", search: { tab: "arr" } })}>{t("إلى تسجيل الدخول", "Go to check-in")}</Button>}
           </>
         }
       />
@@ -79,6 +80,7 @@ function BookingDetail() {
               </div>
             ) : <p className="text-sm text-muted-foreground">{t("سيُنشأ العقد والفاتورة تلقائيًا عند التأكيد.", "Created automatically on confirmation.")}</p>}
           </Section>
+          {(b.status === "checked_in" || bookingCards(s, b.id).length > 0) && <KeyCardPanel b={b} />}
           <Section title={t("سجل الأحداث", "Event log")}>
             <ol className="space-y-3 border-s-2 border-primary/30 ps-4 text-sm">
               {b.events.map((e, i) => (

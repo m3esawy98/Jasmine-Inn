@@ -50,6 +50,11 @@ export function computeRent(plan: Plan, start: string, end: string) {
 export function freeFrom(period: Plan["period"], end: string) {
   return period === "daily" || period === "weekly" ? end : addDays(end, 1);
 }
+/** When a stay's room card stops working: noon on the departure day for nightly and weekly plans, midnight
+ *  after the last day for monthly and semester ones (the same day they count as past departure). */
+export function cardExpiry(period: Plan["period"], end: string) {
+  return period === "daily" || period === "weekly" ? `${end}T12:00:00` : `${addDays(end, 1)}T00:00:00`;
+}
 /** True when the stay covers at least one day/night. */
 export const validRange = (period: Plan["period"], start: string, end: string) => freeFrom(period, end) > start;
 /** Half-open ranges [start, freeFrom): a departure day can be the next arrival day. */
