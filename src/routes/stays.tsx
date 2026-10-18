@@ -222,7 +222,7 @@ function ArrivalPanel({ b, onCheckedIn, onDone }: { b: Booking; onCheckedIn: () 
         <div><dt className="text-xs text-muted-foreground">{t("المستندات", "Documents")}</dt><dd>{t(`${docs.toLocaleString("ar-EG")} من ٣`, `${docs} of 3`)}</dd></div>
         <div><dt className="text-xs text-muted-foreground">{t("الدفعة الأولى والتأمين", "First installment & deposit")}</dt><dd>{pay ? money(pay.due) : "—"}</dd></div>
       </dl>
-      <Button size="lg" className="mt-4 w-full" disabled={!can(s.role, "stay.checkin")} onClick={() => setOpen(true)}><LogIn className="size-4" />{t("تسجيل الدخول", "Check in")}</Button>
+      <Button size="lg" className="mt-4 w-full" disabled={!can(s.role, "stay.checkin")} onClick={() => setOpen(true)}><LogIn className="size-4" />{t("بدء إجراءات تسجيل الدخول", "Start check-in")}</Button>
     </Section>
   );
 }
@@ -310,7 +310,7 @@ function CheckInPanel({ b, onCheckedIn, onDone }: { b: Booking; onCheckedIn: () 
           {blockers.length > 0 && <p className="mb-2 text-xs text-destructive">{t("أكمل الخطوات السابقة أولًا: ", "Finish the steps above first: ")}{blockers.join(" • ")}</p>}
           <Button size="lg" className="w-full" disabled={blockers.length > 0 || !can(s.role, "stay.checkin")} onClick={() => {
             if (run(actions.checkIn(b.id), t("تم تسجيل الدخول وبدء الإقامة الفعلية", "Checked in"))) onCheckedIn();
-          }}><LogIn className="size-4" />{t("تسجيل الدخول", "Check in")}</Button>
+          }}><LogIn className="size-4" />{t("تسجيل دخول النزيل", "Check the guest in")}</Button>
         </>
       ),
     },
